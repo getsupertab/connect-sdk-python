@@ -1,11 +1,10 @@
-"""Customer-side helpers for obtaining and generating Supertab license tokens."""
+"""Customer-side token helpers for Supertab Connect."""
 
 from __future__ import annotations
 
 import base64
 import json
 import logging
-import re
 import time
 import urllib.error
 import urllib.parse
@@ -17,16 +16,13 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from .exceptions import SupertabConnectError
-from .url_pattern import _score_path_pattern
+from ..exceptions import SupertabConnectError
+from .content_matcher import _find_best_matching_content
+from .content_parser import _parse_content_elements
 
 LOGGER = logging.getLogger(__name__)
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
-_CONTENT_RE = re.compile(r"<content\s([^>]*)>([\s\S]*?)</content>", re.IGNORECASE)
-_URL_RE = re.compile(r'url\s*=\s*"([^"]*)"', re.IGNORECASE)
-_SERVER_RE = re.compile(r'server\s*=\s*"([^"]*)"', re.IGNORECASE)
-_LICENSE_RE = re.compile(r"<license[^>]*>[\s\S]*?</license>", re.IGNORECASE)
 _LICENSE_TOKEN_CACHE: dict[str, "_CachedToken"] = {}
 
 
@@ -34,13 +30,6 @@ _LICENSE_TOKEN_CACHE: dict[str, "_CachedToken"] = {}
 class _CachedToken:
     token: str
     exp: int
-
-
-@dataclass(frozen=True)
-class _ContentBlock:
-    url_pattern: str
-    license_xml: str
-    server: str
 
 
 def _debug_log(enabled: bool, message: str, *args: Any) -> None:
@@ -226,106 +215,6 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
 
     _debug_log(debug, "Fetched license.xml from %s", license_xml_url)
     return xml
-
-
-def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock]:
-    content_blocks: list[_ContentBlock] = []
-    element_count = 0
-
-    for match in _CONTENT_RE.finditer(xml):
-        element_count += 1
-        attrs, body = match.groups()
-        url_match = _URL_RE.search(attrs)
-        server_match = _SERVER_RE.search(attrs)
-        license_match = _LICENSE_RE.search(body)
-
-        if url_match and server_match and license_match:
-            content_blocks.append(
-                _ContentBlock(
-                    url_pattern=url_match.group(1),
-                    server=server_match.group(1),
-                    license_xml=license_match.group(0),
-                )
-            )
-            continue
-
-        missing = ", ".join(
-            value
-            for value in (
-                None if url_match else "url",
-                None if server_match else "server",
-                None if license_match else "<license>",
-            )
-            if value is not None
-        )
-        _debug_log(
-            debug,
-            "Skipping <content> element #%s: missing %s",
-            element_count,
-            missing,
-        )
-
-    _debug_log(
-        debug,
-        "Found %s <content> element(s), %s valid",
-        element_count,
-        len(content_blocks),
-    )
-    return content_blocks
-
-
-def _find_best_matching_content(
-    content_blocks: list[_ContentBlock],
-    resource_url: str,
-    debug: bool = False,
-) -> _ContentBlock | None:
-    parsed = urllib.parse.urlparse(resource_url)
-    host = parsed.netloc
-    path = parsed.path
-    if not parsed.scheme or not host:
-        _debug_log(debug, "Cannot parse resource URL: %s", resource_url)
-        return None
-
-    _debug_log(debug, "Matching resource URL: %s (host=%s, path=%s)", resource_url, host, path)
-
-    best_match: _ContentBlock | None = None
-    best_specificity = -1
-
-    for block in content_blocks:
-        pattern = urllib.parse.urlparse(block.url_pattern)
-        if not pattern.scheme or not pattern.netloc:
-            _debug_log(debug, "Skipping block with invalid URL pattern: %s", block.url_pattern)
-            continue
-
-        if pattern.netloc != host:
-            _debug_log(
-                debug,
-                "Skipping block: host mismatch (pattern=%s, resource=%s)",
-                pattern.netloc,
-                host,
-            )
-            continue
-
-        if pattern.path == path:
-            _debug_log(debug, "Exact match found: %s", block.url_pattern)
-            return block
-
-        specificity = _score_path_pattern(pattern.path or "/", path or "/")
-        if specificity > best_specificity:
-            best_specificity = specificity
-            best_match = block
-
-    if best_match is not None:
-        _debug_log(
-            debug,
-            "Wildcard match found: %s (specificity=%s)",
-            best_match.url_pattern,
-            best_specificity,
-        )
-    else:
-        _debug_log(debug, "No matching content block found for %s", resource_url)
-
-    return best_match
 
 
 def obtain_license_token(

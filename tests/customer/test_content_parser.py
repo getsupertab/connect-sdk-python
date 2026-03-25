@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from connect.customer import _ContentBlock, _parse_content_elements
+from connect.customer.content_parser import _ContentBlock, _parse_content_elements
 
 from .conftest import SAMPLE_XML
 

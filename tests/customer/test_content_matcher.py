@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from connect.customer import (
+from connect.customer.content_matcher import (
     _ContentBlock,
     _find_best_matching_content,
-    _parse_content_elements,
 )
+from connect.customer.content_parser import _parse_content_elements
 from connect.url_pattern import _score_path_pattern
 
 from .conftest import SAMPLE_XML

@@ -12,7 +12,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from connect.customer import _generate_license_token, obtain_license_token
+from connect.customer.token import _generate_license_token, obtain_license_token
 from connect.exceptions import SupertabConnectError
 
 from .conftest import FakeResponse, SAMPLE_XML
@@ -51,7 +51,7 @@ def test_obtain_license_token_fetches_and_caches_token(
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     token = obtain_license_token(
         client_id=client_id,
@@ -125,7 +125,7 @@ def test_generate_license_token_builds_client_assertion_with_matching_alg(
 
         return FakeResponse(json.dumps({"access_token": issued_token}))
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     token = _generate_license_token(
         client_id=client_id,
@@ -160,7 +160,7 @@ def test_obtain_license_token_raises_on_license_xml_http_failure(
             fp=io.BytesIO(b"Not Found"),
         )
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(SupertabConnectError, match="Failed to fetch license.xml"):
         obtain_license_token(
@@ -176,7 +176,7 @@ def test_obtain_license_token_raises_when_no_content_elements(
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         return FakeResponse("<rsl></rsl>")
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(
         SupertabConnectError,
@@ -203,7 +203,7 @@ def test_obtain_license_token_raises_when_no_matching_content(
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         return FakeResponse(xml)
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(
         SupertabConnectError,
@@ -234,7 +234,7 @@ def test_obtain_license_token_raises_on_token_endpoint_failure(
             )
         raise AssertionError(f"Unexpected URL: {request.full_url}")
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(SupertabConnectError, match="Failed to obtain license token: 500"):
         obtain_license_token(
@@ -254,7 +254,7 @@ def test_obtain_license_token_raises_on_invalid_json_response(
             return FakeResponse("not json")
         raise AssertionError(f"Unexpected URL: {request.full_url}")
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(
         SupertabConnectError, match="Failed to parse license token response as JSON"
@@ -276,7 +276,7 @@ def test_obtain_license_token_raises_when_access_token_missing(
             return FakeResponse(json.dumps({"token_type": "bearer"}))
         raise AssertionError(f"Unexpected URL: {request.full_url}")
 
-    monkeypatch.setattr("connect.customer.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(
         SupertabConnectError, match="License token response missing access_token"

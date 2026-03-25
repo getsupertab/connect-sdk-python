@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from connect.customer import _LICENSE_TOKEN_CACHE
+from connect.customer.token import _LICENSE_TOKEN_CACHE
 
 SAMPLE_XML = """
 <rsl xmlns="https://rslstandard.org/rsl">
