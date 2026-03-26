@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import respx
 
-from connect.license import build_block_result, build_signal_result, verify_license_token
+from connect.merchant.license import build_block_result, build_signal_result, verify_license_token
 from connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvalidReason, ValidLicenseToken
 
 from .conftest import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL

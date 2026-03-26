@@ -84,6 +84,6 @@ def mock_jwks(jwks_response):
 @pytest.fixture(autouse=True)
 def _clear_jwks_cache():
     """Ensure JWKS cache is cleared before each test."""
-    from connect.jwks import clear_jwks_cache
+    from connect.merchant.jwks import clear_jwks_cache
 
     clear_jwks_cache()

@@ -7,7 +7,7 @@ import pytest
 import respx
 
 from connect.exceptions import JwksKeyNotFoundError
-from connect.jwks import JWKS_CACHE_TTL_SECONDS, clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
+from connect.merchant.jwks import JWKS_CACHE_TTL_SECONDS, clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
 
 from .conftest import JWKS_URL, SUPERTAB_BASE_URL
 
@@ -39,7 +39,7 @@ async def test_fetch_platform_jwks_cache_expires(jwks_response):
         await fetch_platform_jwks(SUPERTAB_BASE_URL)
         assert route.call_count == 1
 
-        with patch("connect.jwks.time.monotonic", return_value=time.monotonic() + JWKS_CACHE_TTL_SECONDS + 1):
+        with patch("connect.merchant.jwks.time.monotonic", return_value=time.monotonic() + JWKS_CACHE_TTL_SECONDS + 1):
             await fetch_platform_jwks(SUPERTAB_BASE_URL)
 
         assert route.call_count == 2

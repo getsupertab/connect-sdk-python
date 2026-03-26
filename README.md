@@ -17,7 +17,19 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned 
 ├── README.md
 ├── connect
 │   ├── __init__.py
-│   └── ...
+│   ├── common.py
+│   ├── exceptions.py
+│   ├── types.py
+│   ├── url_pattern.py
+│   ├── customer
+│   │   ├── __init__.py
+│   │   ├── content_matcher.py
+│   │   ├── content_parser.py
+│   │   └── token.py
+│   └── merchant
+│       ├── __init__.py
+│       ├── jwks.py
+│       └── license.py
 ├── examples
 │   └── ...
 └── tests

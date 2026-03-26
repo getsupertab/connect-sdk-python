@@ -8,7 +8,7 @@ import jwt
 
 from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
-from connect.jwks import clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
+from connect.merchant.jwks import clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
 from connect.types import (
     HandlerAction,
     InvalidLicenseToken,
