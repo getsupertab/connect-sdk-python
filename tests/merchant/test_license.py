@@ -11,6 +11,7 @@ from tests.merchant.constants import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL
 
 
 async def test_verify_valid_token(make_token, jwks_response):
+    """Valid token returns ValidLicenseToken with correct payload."""
     token = make_token()
 
     with respx.mock:
@@ -24,6 +25,7 @@ async def test_verify_valid_token(make_token, jwks_response):
 
 
 async def test_verify_missing_token(mock_jwks):
+    """Empty token string returns MISSING_TOKEN reason."""
     result = await verify_license_token("", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
@@ -31,6 +33,7 @@ async def test_verify_missing_token(mock_jwks):
 
 
 async def test_verify_expired_token(make_token, jwks_response):
+    """Expired token returns EXPIRED reason with the license_id."""
     token = make_token(exp_delta=timedelta(seconds=-60))
 
     with respx.mock:
@@ -43,6 +46,7 @@ async def test_verify_expired_token(make_token, jwks_response):
 
 
 async def test_verify_invalid_issuer(make_token, mock_jwks):
+    """Token with wrong issuer returns INVALID_ISSUER reason."""
     token = make_token(issuer="https://evil.example.com")
 
     result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
@@ -52,6 +56,7 @@ async def test_verify_invalid_issuer(make_token, mock_jwks):
 
 
 async def test_verify_invalid_audience(make_token, mock_jwks):
+    """Token with non-matching audience returns INVALID_AUDIENCE reason."""
     token = make_token(audience="https://other-site.com/page")
 
     result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
@@ -61,6 +66,7 @@ async def test_verify_invalid_audience(make_token, mock_jwks):
 
 
 async def test_verify_invalid_algorithm(mock_jwks):
+    """RS256-signed token is rejected as unsupported algorithm."""
     import jwt as pyjwt
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -81,6 +87,7 @@ async def test_verify_invalid_algorithm(mock_jwks):
 
 
 async def test_verify_invalid_header(mock_jwks):
+    """Malformed JWT string returns INVALID_HEADER reason."""
     result = await verify_license_token("not-a-jwt", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
@@ -119,6 +126,7 @@ async def test_verify_jwks_key_not_found_after_retry_returns_invalid(make_token)
 
 
 async def test_verify_jwks_fetch_failure(make_token):
+    """JWKS endpoint returning 500 results in SERVER_ERROR reason."""
     token = make_token()
 
     with respx.mock:
@@ -155,6 +163,7 @@ async def test_verify_audience_rejects_partial_path_match(make_token, mock_jwks)
 
 
 def test_build_block_result_missing_token():
+    """Block result for missing token returns 401 with invalid_request."""
     result = build_block_result(
         reason=LicenseTokenInvalidReason.MISSING_TOKEN,
         error="Authorization header missing or malformed",
@@ -168,6 +177,7 @@ def test_build_block_result_missing_token():
 
 
 def test_build_block_result_invalid_audience():
+    """Block result for invalid audience returns 403 with insufficient_scope."""
     result = build_block_result(
         reason=LicenseTokenInvalidReason.INVALID_AUDIENCE,
         error="The license does not grant access to this resource",
@@ -179,6 +189,7 @@ def test_build_block_result_invalid_audience():
 
 
 def test_build_block_result_server_error():
+    """Block result for server error returns 503."""
     result = build_block_result(
         reason=LicenseTokenInvalidReason.SERVER_ERROR,
         error="The server encountered an error validating the license",
@@ -190,6 +201,7 @@ def test_build_block_result_server_error():
 
 
 def test_build_signal_result():
+    """Signal result returns ALLOW action with license link headers."""
     result = build_signal_result(REQUEST_URL)
 
     assert result["action"] is HandlerAction.ALLOW
@@ -199,6 +211,7 @@ def test_build_signal_result():
 
 
 def test_build_block_result_sanitizes_header_value():
+    """Block result strips CRLF and escapes quotes in header values."""
     result = build_block_result(
         reason=LicenseTokenInvalidReason.EXPIRED,
         error='Evil "header\r\ninjection',
