@@ -1,14 +1,13 @@
 """Parsing helpers for customer-side license.xml content blocks."""
 
-import re
 from dataclasses import dataclass
+from xml.etree import ElementTree
 
 from connect.common import debug_log
 
-_CONTENT_RE = re.compile(r"<content\s([^>]*)>([\s\S]*?)</content>", re.IGNORECASE)
-_URL_RE = re.compile(r'url\s*=\s*"([^"]*)"', re.IGNORECASE)
-_SERVER_RE = re.compile(r'server\s*=\s*"([^"]*)"', re.IGNORECASE)
-_LICENSE_RE = re.compile(r"<license[^>]*>[\s\S]*?</license>", re.IGNORECASE)
+_RSL_NAMESPACE = "https://rslstandard.org/rsl"
+_NS = {"rsl": _RSL_NAMESPACE}
+ElementTree.register_namespace("", _RSL_NAMESPACE)
 
 
 @dataclass(frozen=True)
@@ -18,23 +17,44 @@ class _ContentBlock:
     server: str
 
 
+def _clean_attribute(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock]:
+    """Parse valid ``<content>`` elements from license XML into content block records."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError as error:
+        debug_log(debug, f"Failed to parse license.xml as XML: {error}")
+        return []
+
     content_blocks: list[_ContentBlock] = []
-    element_count = 0
 
-    for match in _CONTENT_RE.finditer(xml):
-        element_count += 1
-        attrs, body = match.groups()
-        url_match = _URL_RE.search(attrs)
-        server_match = _SERVER_RE.search(attrs)
-        license_match = _LICENSE_RE.search(body)
+    # Find namespaced <content> first, fall back to non-namespaced if necessary
+    content_elements = root.findall("rsl:content", namespaces=_NS)
+    if not len(content_elements):
+        content_elements = root.findall("content", namespaces=_NS)
 
-        if url_match and server_match and license_match:
+    for element_count, content_el in enumerate(content_elements, start=1):
+        url_pattern = _clean_attribute(content_el.attrib.get("url"))
+        server = _clean_attribute(content_el.attrib.get("server"))
+
+        license_el = content_el.find("rsl:license", namespaces=_NS)
+        if license_el is None:
+            license_el = content_el.find("license", namespaces=_NS)
+
+        license_xml = ElementTree.tostring(license_el, encoding="unicode") if license_el is not None else None
+
+        if url_pattern and server and license_xml:
             content_blocks.append(
                 _ContentBlock(
-                    url_pattern=url_match.group(1),
-                    server=server_match.group(1),
-                    license_xml=license_match.group(0),
+                    url_pattern=url_pattern,
+                    server=server,
+                    license_xml=license_xml,
                 )
             )
             continue
@@ -42,9 +62,9 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         missing = ", ".join(
             value
             for value in (
-                None if url_match else "url",
-                None if server_match else "server",
-                None if license_match else "<license>",
+                None if url_pattern else "url",
+                None if server else "server",
+                None if license_xml else "<license>",
             )
             if value is not None
         )
@@ -55,6 +75,6 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
 
     debug_log(
         debug,
-        f"Found {element_count} <content> element(s), {len(content_blocks)} valid",
+        f"Found {len(content_elements)} <content> element(s), {len(content_blocks)} valid",
     )
     return content_blocks
