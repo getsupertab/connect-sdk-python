@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 from connect.common import debug_log
 
 _RSL_NAMESPACE = "https://rslstandard.org/rsl"
+_NS = {"rsl": _RSL_NAMESPACE}
 ElementTree.register_namespace("", _RSL_NAMESPACE)
 
 
@@ -23,15 +24,8 @@ def _clean_attribute(value: str | None) -> str | None:
     return cleaned or None
 
 
-def _local_name(tag: str) -> str:
-    """Return an XML tag name without any namespace URI wrapper."""
-    if tag.startswith("{"):
-        return tag.rsplit("}", 1)[-1]
-    return tag
-
-
 def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock]:
-    """Parse valid `<content>` elements from license XML into content block records."""
+    """Parse valid ``<content>`` elements from license XML into content block records."""
     try:
         root = ElementTree.fromstring(xml)
     except ElementTree.ParseError as error:
@@ -39,17 +33,19 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         return []
 
     content_blocks: list[_ContentBlock] = []
-    content_elements = [element for element in root.iter() if _local_name(element.tag) == "content"]
+
+    # Find namespaced <content> first, fall back to non-namespaced if necessary
+    content_elements = root.findall("rsl:content", namespaces=_NS)
+    if not len(content_elements):
+        content_elements = root.findall("content", namespaces=_NS)
 
     for element_count, content_el in enumerate(content_elements, start=1):
         url_pattern = _clean_attribute(content_el.attrib.get("url"))
         server = _clean_attribute(content_el.attrib.get("server"))
 
-        license_el = None
-        for child in content_el:
-            if _local_name(child.tag) == "license":
-                license_el = child
-                break
+        license_el = content_el.find("rsl:license", namespaces=_NS)
+        if license_el is None:
+            license_el = content_el.find("license", namespaces=_NS)
 
         license_xml = ElementTree.tostring(license_el, encoding="unicode") if license_el is not None else None
 
