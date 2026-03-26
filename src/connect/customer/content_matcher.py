@@ -19,7 +19,9 @@ def _find_best_matching_content(
         debug_log(debug, f"Cannot parse resource URL: {resource_url}")
         return None
 
-    debug_log(debug, f"Matching resource URL: {resource_url} (host={host}, path={path})")
+    debug_log(
+        debug, f"Matching resource URL: {resource_url} (host={host}, path={path})"
+    )
 
     best_match: _ContentBlock | None = None
     best_specificity = -1
@@ -27,7 +29,9 @@ def _find_best_matching_content(
     for block in content_blocks:
         pattern = urllib.parse.urlparse(block.url_pattern)
         if not pattern.scheme or not pattern.netloc:
-            debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
+            debug_log(
+                debug, f"Skipping block with invalid URL pattern: {block.url_pattern}"
+            )
             continue
 
         if pattern.netloc != host:

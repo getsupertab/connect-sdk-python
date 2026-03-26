@@ -34,18 +34,25 @@ def test_find_best_matching_content_prefers_the_most_specific_pattern(
 def test_find_best_matching_content_rejects_different_host() -> None:
     blocks = _parse_content_elements(SAMPLE_XML)
 
-    assert _find_best_matching_content(blocks, "http://other-host:7676/article/foo") is None
+    assert (
+        _find_best_matching_content(blocks, "http://other-host:7676/article/foo")
+        is None
+    )
 
 
 def test_find_best_matching_content_rejects_different_port() -> None:
     blocks = _parse_content_elements(SAMPLE_XML)
 
-    assert _find_best_matching_content(blocks, "http://127.0.0.1:9999/article/foo") is None
+    assert (
+        _find_best_matching_content(blocks, "http://127.0.0.1:9999/article/foo") is None
+    )
 
 
 def test_find_best_matching_content_skips_invalid_patterns() -> None:
     blocks = [
-        _ContentBlock(url_pattern="not-a-valid-url", server="http://x", license_xml="<license/>"),
+        _ContentBlock(
+            url_pattern="not-a-valid-url", server="http://x", license_xml="<license/>"
+        ),
         *_parse_content_elements(SAMPLE_XML),
     ]
 

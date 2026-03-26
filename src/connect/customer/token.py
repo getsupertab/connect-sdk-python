@@ -2,7 +2,6 @@
 
 import base64
 import json
-import logging
 import time
 import urllib.error
 import urllib.parse
@@ -59,7 +58,9 @@ def _read_json_response(response: Any, debug: bool) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
     except json.JSONDecodeError as error:
         error_log(debug, f"Failed to parse license token response as JSON: {error}")
-        raise SupertabConnectError("Failed to parse license token response as JSON") from error
+        raise SupertabConnectError(
+            "Failed to parse license token response as JSON"
+        ) from error
 
 
 def _retrieve_license_token(
@@ -72,9 +73,7 @@ def _retrieve_license_token(
     except urllib.error.HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
         suffix = f" - {error_body}" if error_body else ""
-        message = (
-            f"Failed to obtain license token: {error.code} {error.reason}{suffix}"
-        )
+        message = f"Failed to obtain license token: {error.code} {error.reason}{suffix}"
         error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
     except urllib.error.URLError as error:
@@ -226,7 +225,9 @@ def obtain_license_token(
     content_blocks = _parse_content_elements(xml, debug)
 
     if not content_blocks:
-        error_log(debug, "No valid <content> elements with <license> found in license.xml")
+        error_log(
+            debug, "No valid <content> elements with <license> found in license.xml"
+        )
         raise SupertabConnectError(
             "No valid <content> elements with <license> found in license.xml"
         )
@@ -245,7 +246,10 @@ def obtain_license_token(
     token_endpoint = matched_content.server.rstrip("/") + "/token"
     debug_log(debug, f"Requesting license token from {token_endpoint}")
 
-    auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+    auth = (
+        base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8"))
+        .decode("ascii")
+    )
     body = urllib.parse.urlencode(
         {
             "grant_type": "client_credentials",

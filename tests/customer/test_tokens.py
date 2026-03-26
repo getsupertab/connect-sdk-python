@@ -1,4 +1,5 @@
 import base64
+from http.client import HTTPMessage
 import io
 import json
 import time
@@ -154,7 +155,7 @@ def test_obtain_license_token_raises_on_license_xml_http_failure(
             request.full_url,
             404,
             "Not Found",
-            hdrs=None,
+            hdrs=HTTPMessage(),
             fp=io.BytesIO(b"Not Found"),
         )
 
@@ -227,14 +228,16 @@ def test_obtain_license_token_raises_on_token_endpoint_failure(
                 request.full_url,
                 500,
                 "Internal Server Error",
-                hdrs=None,
+                hdrs=HTTPMessage(),
                 fp=io.BytesIO(b"Internal Server Error"),
             )
         raise AssertionError(f"Unexpected URL: {request.full_url}")
 
     monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
-    with pytest.raises(SupertabConnectError, match="Failed to obtain license token: 500"):
+    with pytest.raises(
+        SupertabConnectError, match="Failed to obtain license token: 500"
+    ):
         obtain_license_token(
             client_id="client",
             client_secret="secret",

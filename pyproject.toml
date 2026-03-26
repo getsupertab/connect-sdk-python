@@ -26,7 +26,10 @@ license-files = ["LICEN[CS]E*"]
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.4.2",
   "pytest>=8,<9",
+  "ruff>=0.15.7",
+  "ty>=0.0.25",
 ]
 
 [project.urls]
