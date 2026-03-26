@@ -9,7 +9,7 @@ import respx
 from connect.exceptions import JwksKeyNotFoundError
 from connect.merchant.jwks import JWKS_CACHE_TTL_SECONDS, clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
 
-from .conftest import JWKS_URL, SUPERTAB_BASE_URL
+from tests.merchant.constants import JWKS_URL, SUPERTAB_BASE_URL
 
 
 async def test_fetch_platform_jwks(jwks_response):

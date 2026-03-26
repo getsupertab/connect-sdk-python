@@ -9,9 +9,7 @@ import respx
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 
-SUPERTAB_BASE_URL = "https://connect.supertab.co"
-REQUEST_URL = "https://example.com/premium/article"
-JWKS_URL = f"{SUPERTAB_BASE_URL}/.well-known/jwks.json/platform"
+from tests.merchant.constants import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL
 
 
 @pytest.fixture()
