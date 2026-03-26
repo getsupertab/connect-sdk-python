@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import base64
 import io
 import json
@@ -15,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from connect.customer.token import _generate_license_token, obtain_license_token
 from connect.exceptions import SupertabConnectError
 
-from .conftest import FakeResponse, SAMPLE_XML
+from tests.customer.conftest import FakeResponse, SAMPLE_XML
 
 
 def test_obtain_license_token_fetches_and_caches_token(

@@ -1,13 +1,11 @@
 """Matching helpers for customer-side license content blocks."""
 
-from __future__ import annotations
-
 import logging
 import urllib.parse
 from typing import Any
 
-from ..url_pattern import _score_path_pattern
-from .content_parser import _ContentBlock
+from connect.url_pattern import _score_path_pattern
+from connect.customer.content_parser import _ContentBlock
 
 LOGGER = logging.getLogger(__name__)
 

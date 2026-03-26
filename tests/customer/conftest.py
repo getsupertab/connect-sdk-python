@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 
 from connect.customer.token import _LICENSE_TOKEN_CACHE

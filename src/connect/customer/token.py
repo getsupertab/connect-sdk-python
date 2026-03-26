@@ -1,7 +1,5 @@
 """Customer-side token helpers for Supertab Connect."""
 
-from __future__ import annotations
-
 import base64
 import json
 import logging
@@ -16,9 +14,9 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from ..exceptions import SupertabConnectError
-from .content_matcher import _find_best_matching_content
-from .content_parser import _parse_content_elements
+from connect.exceptions import SupertabConnectError
+from connect.customer.content_matcher import _find_best_matching_content
+from connect.customer.content_parser import _parse_content_elements
 
 LOGGER = logging.getLogger(__name__)
 

@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import pytest
 
 from connect.customer.content_parser import _ContentBlock, _parse_content_elements
 
-from .conftest import SAMPLE_XML
+from tests.customer.conftest import SAMPLE_XML
 
 
 def test_parse_content_elements_parses_multiple_blocks() -> None:

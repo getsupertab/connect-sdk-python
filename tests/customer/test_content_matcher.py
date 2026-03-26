@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 
 from connect.customer.content_matcher import (
@@ -9,7 +7,7 @@ from connect.customer.content_matcher import (
 from connect.customer.content_parser import _parse_content_elements
 from connect.url_pattern import _score_path_pattern
 
-from .conftest import SAMPLE_XML
+from tests.customer.conftest import SAMPLE_XML
 
 
 @pytest.mark.parametrize(

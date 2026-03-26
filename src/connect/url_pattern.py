@@ -1,7 +1,5 @@
 """Utilities for matching resource URLs against license URL patterns."""
 
-from __future__ import annotations
-
 import re
 
 

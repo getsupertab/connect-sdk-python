@@ -1,7 +1,7 @@
 """Supertab Connect SDK."""
 
-from .customer.token import obtain_license_token
-from .exceptions import SupertabConnectError
+from connect.customer.token import obtain_license_token
+from connect.exceptions import SupertabConnectError
 
 __all__ = [
     "obtain_license_token",
