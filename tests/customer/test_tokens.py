@@ -152,6 +152,7 @@ def test_obtain_license_token_raises_on_license_xml_http_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Raises when license.xml fetch returns an HTTP error."""
+
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         raise urllib.error.HTTPError(
             request.full_url,
@@ -175,6 +176,7 @@ def test_obtain_license_token_raises_when_no_content_elements(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Raises when license.xml has no valid content elements."""
+
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         return FakeResponse("<rsl></rsl>")
 
@@ -252,6 +254,7 @@ def test_obtain_license_token_raises_on_invalid_json_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Raises when the token endpoint returns non-JSON."""
+
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         if request.full_url.endswith("/license.xml"):
             return FakeResponse(SAMPLE_XML)
@@ -273,6 +276,7 @@ def test_obtain_license_token_raises_when_access_token_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Raises when the token response JSON has no access_token field."""
+
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         if request.full_url.endswith("/license.xml"):
             return FakeResponse(SAMPLE_XML)
