@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import jwt
 
+from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
 from connect.jwks import clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
 from connect.types import (
@@ -89,16 +90,14 @@ async def verify_license_token(
     try:
         header = jwt.get_unverified_header(license_token)
     except jwt.exceptions.DecodeError:
-        if debug:
-            print("Invalid license JWT header")
+        debug_log(debug, "Invalid license JWT header")
         return InvalidLicenseToken(
             reason=LicenseTokenInvalidReason.INVALID_HEADER,
             error=_reason_to_error_description(LicenseTokenInvalidReason.INVALID_HEADER),
         )
 
     if header.get("alg") != "ES256":
-        if debug:
-            print(f"Unsupported license JWT alg: {header.get('alg')}")
+        debug_log(debug, f"Unsupported license JWT alg: {header.get('alg')}")
         return InvalidLicenseToken(
             reason=LicenseTokenInvalidReason.INVALID_ALG,
             error=_reason_to_error_description(LicenseTokenInvalidReason.INVALID_ALG),
@@ -108,8 +107,7 @@ async def verify_license_token(
     try:
         unverified_payload = jwt.decode(license_token, options={"verify_signature": False})
     except jwt.exceptions.DecodeError:
-        if debug:
-            print("Invalid license JWT payload")
+        debug_log(debug, "Invalid license JWT payload")
         return InvalidLicenseToken(
             reason=LicenseTokenInvalidReason.INVALID_PAYLOAD,
             error=_reason_to_error_description(LicenseTokenInvalidReason.INVALID_PAYLOAD),
@@ -123,8 +121,7 @@ async def verify_license_token(
     normalized_base_url = _strip_trailing_slash(supertab_base_url)
 
     if not normalized_issuer or not normalized_issuer.startswith(normalized_base_url):
-        if debug:
-            print(f"License JWT issuer is missing or malformed: {issuer}")
+        debug_log(debug, f"License JWT issuer is missing or malformed: {issuer}")
         return InvalidLicenseToken(
             reason=LicenseTokenInvalidReason.INVALID_ISSUER,
             error=_reason_to_error_description(LicenseTokenInvalidReason.INVALID_ISSUER),
@@ -141,8 +138,7 @@ async def verify_license_token(
     )
 
     if not matches_request_url:
-        if debug:
-            print(f"License JWT audience does not match request URL: {aud}")
+        debug_log(debug, f"License JWT audience does not match request URL: {aud}")
         return InvalidLicenseToken(
             reason=LicenseTokenInvalidReason.INVALID_AUDIENCE,
             error=_reason_to_error_description(LicenseTokenInvalidReason.INVALID_AUDIENCE),
@@ -154,8 +150,7 @@ async def verify_license_token(
         try:
             jwks = await fetch_platform_jwks(supertab_base_url, debug=debug)
         except Exception:
-            if debug:
-                print("Failed to fetch platform JWKS")
+            error_log(debug, "Failed to fetch platform JWKS")
             return InvalidLicenseToken(
                 reason=LicenseTokenInvalidReason.SERVER_ERROR,
                 error=_reason_to_error_description(LicenseTokenInvalidReason.SERVER_ERROR),
@@ -177,16 +172,14 @@ async def verify_license_token(
         except JwksKeyNotFoundError:
             raise
         except jwt.exceptions.ExpiredSignatureError:
-            if debug:
-                print("License JWT has expired")
+            debug_log(debug, "License JWT has expired")
             return InvalidLicenseToken(
                 reason=LicenseTokenInvalidReason.EXPIRED,
                 error=_reason_to_error_description(LicenseTokenInvalidReason.EXPIRED),
                 license_id=license_id,
             )
         except Exception:
-            if debug:
-                print("License JWT verification failed")
+            debug_log(debug, "License JWT verification failed")
             return InvalidLicenseToken(
                 reason=LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED,
                 error=_reason_to_error_description(LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED),
@@ -196,14 +189,12 @@ async def verify_license_token(
     try:
         return await _verify()
     except JwksKeyNotFoundError:
-        if debug:
-            print("Key not found in cached JWKS, clearing cache and retrying...")
+        debug_log(debug, "Key not found in cached JWKS, clearing cache and retrying...")
         clear_jwks_cache()
         try:
             return await _verify()
         except JwksKeyNotFoundError:
-            if debug:
-                print("Key not found after JWKS cache refresh")
+            debug_log(debug, "Key not found after JWKS cache refresh")
             return InvalidLicenseToken(
                 reason=LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED,
                 error=_reason_to_error_description(LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED),
