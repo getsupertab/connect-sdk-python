@@ -1,5 +1,6 @@
 """Minimal example for generating a customer license token."""
 
+import asyncio
 import logging
 
 from connect import obtain_license_token
@@ -7,8 +8,8 @@ from connect import obtain_license_token
 logging.basicConfig(level=logging.DEBUG)
 
 
-def main() -> None:
-    token = obtain_license_token(
+async def main() -> None:
+    token = await obtain_license_token(
         client_id="your_client_id",
         client_secret="your_client_secret",
         resource_url="https://example.com",
@@ -19,4 +20,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

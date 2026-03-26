@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import jwt
+import jwt.algorithms
 import pytest
 import respx
 from cryptography.hazmat.primitives.asymmetric import ec

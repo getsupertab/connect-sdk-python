@@ -1,14 +1,15 @@
 """Customer-side token helpers for Supertab Connect."""
 
+import asyncio
 import base64
 import json
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from weakref import WeakKeyDictionary
 
+import httpx
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -19,7 +20,11 @@ from connect.customer.content_matcher import _find_best_matching_content
 from connect.customer.content_parser import _parse_content_elements
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
+_DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 _LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
+_LICENSE_TOKEN_LOCKS: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[str, str], asyncio.Lock]] = (
+    WeakKeyDictionary()
+)
 
 
 @dataclass(frozen=True)
@@ -53,29 +58,63 @@ def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | 
     return None
 
 
-def _read_json_response(response: Any, debug: bool) -> dict[str, Any]:
+def _get_cache_lock(cache_key: tuple[str, str]) -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    loop_locks = _LICENSE_TOKEN_LOCKS.get(loop)
+    if loop_locks is None:
+        loop_locks = {}
+        _LICENSE_TOKEN_LOCKS[loop] = loop_locks
+
+    lock = loop_locks.get(cache_key)
+    if lock is None:
+        lock = asyncio.Lock()
+        loop_locks[cache_key] = lock
+
+    return lock
+
+
+def _create_async_client(**kwargs: Any) -> httpx.AsyncClient:
+    kwargs.setdefault("follow_redirects", True)
+    kwargs.setdefault("timeout", httpx.Timeout(_DEFAULT_HTTP_TIMEOUT_SECONDS))
+    return httpx.AsyncClient(**kwargs)
+
+
+def _read_json_response(response: httpx.Response, debug: bool) -> dict[str, Any]:
     try:
-        return json.loads(response.read().decode("utf-8"))
+        payload = response.json()
     except json.JSONDecodeError as error:
         error_log(debug, f"Failed to parse license token response as JSON: {error}")
         raise SupertabConnectError("Failed to parse license token response as JSON") from error
 
+    if not isinstance(payload, dict):
+        error_log(debug, "Failed to parse license token response as JSON: expected object payload")
+        raise SupertabConnectError("Failed to parse license token response as JSON")
 
-def _retrieve_license_token(
-    request: urllib.request.Request,
+    return payload
+
+
+async def _retrieve_license_token(
+    client: httpx.AsyncClient,
+    *,
+    token_endpoint: str,
+    body: dict[str, str],
+    headers: dict[str, str],
     debug: bool = False,
 ) -> str:
     try:
-        with urllib.request.urlopen(request) as response:
-            payload = _read_json_response(response, debug)
-    except urllib.error.HTTPError as error:
-        error_body = error.read().decode("utf-8", errors="replace")
+        response = await client.post(token_endpoint, data=body, headers=headers)
+        response.raise_for_status()
+        payload = _read_json_response(response, debug)
+    except httpx.HTTPStatusError as error:
+        error_body = error.response.text
         suffix = f" - {error_body}" if error_body else ""
-        message = f"Failed to obtain license token: {error.code} {error.reason}{suffix}"
+        message = (
+            f"Failed to obtain license token: {error.response.status_code} {error.response.reason_phrase}{suffix}"
+        )
         error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
-    except urllib.error.URLError as error:
-        message = f"Failed to obtain license token: {error.reason}"
+    except httpx.RequestError as error:
+        message = f"Failed to obtain license token: {error}"
         error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
 
@@ -112,7 +151,7 @@ def _select_signing_key(
     raise SupertabConnectError("Unsupported private key format. Expected RSA or P-256 EC private key.")
 
 
-def _generate_license_token(
+async def _generate_license_token(
     *,
     client_id: str,
     kid: str,
@@ -145,44 +184,48 @@ def _generate_license_token(
         headers={"alg": algorithm, "kid": kid},
     )
 
-    body = urllib.parse.urlencode(
-        {
-            "grant_type": "rsl",
-            "client_assertion_type": ("urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
-            "client_assertion": client_assertion,
-            "license": license_xml,
-            "resource": resource_url,
-        }
-    ).encode("utf-8")
+    body = {
+        "grant_type": "rsl",
+        "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        "client_assertion": client_assertion,
+        "license": license_xml,
+        "resource": resource_url,
+    }
 
-    request = urllib.request.Request(
-        token_endpoint,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-        },
-    )
-
-    return _retrieve_license_token(request, debug)
+    async with _create_async_client() as client:
+        return await _retrieve_license_token(
+            client,
+            token_endpoint=token_endpoint,
+            body=body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+            debug=debug,
+        )
 
 
-def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
+async def _fetch_license_xml(
+    client: httpx.AsyncClient,
+    resource_url: str,
+    debug: bool = False,
+) -> str:
     license_xml_url = f"{_build_origin(resource_url)}/license.xml"
-    request = urllib.request.Request(license_xml_url, method="GET")
 
     try:
-        with urllib.request.urlopen(request) as response:
-            xml = response.read().decode("utf-8")
-    except urllib.error.HTTPError as error:
+        response = await client.get(license_xml_url)
+        response.raise_for_status()
+        xml = response.text
+    except httpx.HTTPStatusError as error:
         error_log(
             debug,
-            f"Failed to fetch license.xml from {license_xml_url}: {error.code}",
+            f"Failed to fetch license.xml from {license_xml_url}: {error.response.status_code}",
         )
-        raise SupertabConnectError(f"Failed to fetch license.xml from {license_xml_url}: {error.code}") from error
-    except urllib.error.URLError as error:
-        message = f"Failed to fetch license.xml from {license_xml_url}: {error.reason}"
+        raise SupertabConnectError(
+            f"Failed to fetch license.xml from {license_xml_url}: {error.response.status_code}"
+        ) from error
+    except httpx.RequestError as error:
+        message = f"Failed to fetch license.xml from {license_xml_url}: {error}"
         error_log(debug, message)
         raise SupertabConnectError(message) from error
 
@@ -190,7 +233,7 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
     return xml
 
 
-def obtain_license_token(
+async def obtain_license_token(
     *,
     client_id: str,
     client_secret: str,
@@ -208,64 +251,66 @@ def obtain_license_token(
     if cached is not None:
         return cached
 
-    xml = _fetch_license_xml(resource_url, debug)
-    debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
-    content_blocks = _parse_content_elements(xml, debug)
+    lock = _get_cache_lock(cache_key)
+    async with lock:
+        cached = _get_cached_token(cache_key, debug)
+        if cached is not None:
+            return cached
 
-    if not content_blocks:
-        error_log(debug, "No valid <content> elements with <license> found in license.xml")
-        raise SupertabConnectError("No valid <content> elements with <license> found in license.xml")
+        async with _create_async_client() as client:
+            xml = await _fetch_license_xml(client, resource_url, debug)
+            debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
+            content_blocks = _parse_content_elements(xml, debug)
 
-    matched_content = _find_best_matching_content(content_blocks, resource_url, debug)
-    if matched_content is None:
-        patterns = ", ".join(block.url_pattern for block in content_blocks)
-        error_log(
-            debug,
-            f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
-        )
-        raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
+            if not content_blocks:
+                error_log(debug, "No valid <content> elements with <license> found in license.xml")
+                raise SupertabConnectError("No valid <content> elements with <license> found in license.xml")
 
-    token_endpoint = matched_content.server.rstrip("/") + "/token"
-    debug_log(debug, f"Requesting license token from {token_endpoint}")
+            matched_content = _find_best_matching_content(content_blocks, resource_url, debug)
+            if matched_content is None:
+                patterns = ", ".join(block.url_pattern for block in content_blocks)
+                error_log(
+                    debug,
+                    f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
+                )
+                raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
 
-    auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
-    body = urllib.parse.urlencode(
-        {
-            "grant_type": "client_credentials",
-            "license": matched_content.license_xml,
-            "resource": matched_content.url_pattern,
-        }
-    ).encode("utf-8")
+            token_endpoint = matched_content.server.rstrip("/") + "/token"
+            debug_log(debug, f"Requesting license token from {token_endpoint}")
 
-    request = urllib.request.Request(
-        token_endpoint,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-            "Authorization": f"Basic {auth}",
-        },
-    )
+            auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+            token = await _retrieve_license_token(
+                client,
+                token_endpoint=token_endpoint,
+                body={
+                    "grant_type": "client_credentials",
+                    "license": matched_content.license_xml,
+                    "resource": matched_content.url_pattern,
+                },
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "application/json",
+                    "Authorization": f"Basic {auth}",
+                },
+                debug=debug,
+            )
 
-    token = _retrieve_license_token(request, debug)
-
-    try:
-        claims = jwt.decode(
-            token,
-            options={
-                "verify_signature": False,
-                "verify_exp": False,
-                "verify_aud": False,
-                "verify_iss": False,
-            },
-            algorithms=["HS256", "RS256", "ES256", "PS256"],
-        )
-        exp = claims.get("exp")
-        if isinstance(exp, int):
-            _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
-    except (jwt.PyJWTError, ValueError, TypeError) as error:
-        debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
+        try:
+            claims = jwt.decode(
+                token,
+                options={
+                    "verify_signature": False,
+                    "verify_exp": False,
+                    "verify_aud": False,
+                    "verify_iss": False,
+                },
+                algorithms=["HS256", "RS256", "ES256", "PS256"],
+            )
+            exp = claims.get("exp")
+            if isinstance(exp, int):
+                _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
+        except (jwt.PyJWTError, ValueError, TypeError) as error:
+            debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
 
     return token
 

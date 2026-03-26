@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 async def main() -> None:
-    token = obtain_license_token(
+    token = await obtain_license_token(
         client_id="your_client_id",
         client_secret="your_client_secret",
         resource_url="https://example.com",

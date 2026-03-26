@@ -1,10 +1,12 @@
 """License token verification for the Supertab Connect SDK."""
 
 import re
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import jwt
+import jwt.algorithms
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
 from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
@@ -180,7 +182,7 @@ async def verify_license_token(
 
         try:
             jwk_key = find_key_by_kid(jwks, header.get("kid"))
-            public_key = jwt.algorithms.ECAlgorithm.from_jwk(jwk_key)
+            public_key = cast(EllipticCurvePublicKey, jwt.algorithms.ECAlgorithm.from_jwk(jwk_key))
             verified_payload = jwt.decode(
                 license_token,
                 key=public_key,

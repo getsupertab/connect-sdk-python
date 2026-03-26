@@ -2,6 +2,12 @@
 
 Python SDK for Supertab Connect.
 
+## Usage
+
+Check the `examples` folder to get the idea of how to use the provided functionality.
+
+Dedicated SDK docs portal is coming soon.
+
 ## Development
 
 This project uses `hatchling` as the build backend.
