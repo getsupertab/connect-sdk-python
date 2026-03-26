@@ -30,18 +30,6 @@ def _local_name(tag: str) -> str:
     return tag
 
 
-def _iter_content_elements(root: ElementTree.Element) -> list[ElementTree.Element]:
-    return [element for element in root.iter() if _local_name(element.tag) == "content"]
-
-
-def _find_license_element(content_el: ElementTree.Element) -> ElementTree.Element | None:
-    """Return the first direct `<license>` child under a `<content>` element."""
-    for child in content_el:
-        if _local_name(child.tag) == "license":
-            return child
-    return None
-
-
 def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock]:
     """Parse valid `<content>` elements from license XML into content block records."""
     try:
@@ -51,12 +39,18 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         return []
 
     content_blocks: list[_ContentBlock] = []
-    content_elements = _iter_content_elements(root)
+    content_elements = [element for element in root.iter() if _local_name(element.tag) == "content"]
 
     for element_count, content_el in enumerate(content_elements, start=1):
         url_pattern = _clean_attribute(content_el.attrib.get("url"))
         server = _clean_attribute(content_el.attrib.get("server"))
-        license_el = _find_license_element(content_el)
+
+        license_el = None
+        for child in content_el:
+            if _local_name(child.tag) == "license":
+                license_el = child
+                break
+
         license_xml = ElementTree.tostring(license_el, encoding="unicode") if license_el is not None else None
 
         if url_pattern and server and license_xml:
