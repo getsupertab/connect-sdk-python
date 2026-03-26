@@ -19,6 +19,4 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned 
 │   ├── obtain_license_token.py
 │   └── obtain_and_verify_license_token.py
 └── tests
-    ├── customer
-    └── merchant
 ```
