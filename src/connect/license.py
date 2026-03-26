@@ -24,6 +24,8 @@ def _strip_trailing_slash(value: str) -> str:
 def _generate_license_link(request_url: str) -> str:
     try:
         parsed = urlparse(request_url)
+        if not parsed.scheme or not parsed.netloc:
+            return "/license.xml"
         return f"{parsed.scheme}://{parsed.netloc}/license.xml"
     except Exception:
         return "/license.xml"
@@ -197,7 +199,16 @@ async def verify_license_token(
         if debug:
             print("Key not found in cached JWKS, clearing cache and retrying...")
         clear_jwks_cache()
-        return await _verify()
+        try:
+            return await _verify()
+        except JwksKeyNotFoundError:
+            if debug:
+                print("Key not found after JWKS cache refresh")
+            return InvalidLicenseToken(
+                reason=LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED,
+                error=_reason_to_error_description(LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED),
+                license_id=license_id,
+            )
 
 
 def build_block_result(

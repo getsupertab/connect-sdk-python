@@ -12,7 +12,6 @@ from connect.jwks import JWKS_CACHE_TTL_SECONDS, clear_jwks_cache, fetch_platfor
 from .conftest import JWKS_URL, SUPERTAB_BASE_URL
 
 
-@pytest.mark.anyio
 async def test_fetch_platform_jwks(jwks_response):
     with respx.mock:
         route = respx.get(JWKS_URL).respond(json=jwks_response)
@@ -23,7 +22,6 @@ async def test_fetch_platform_jwks(jwks_response):
         assert route.call_count == 1
 
 
-@pytest.mark.anyio
 async def test_fetch_platform_jwks_caches_result(jwks_response):
     with respx.mock:
         route = respx.get(JWKS_URL).respond(json=jwks_response)
@@ -34,7 +32,6 @@ async def test_fetch_platform_jwks_caches_result(jwks_response):
         assert route.call_count == 1
 
 
-@pytest.mark.anyio
 async def test_fetch_platform_jwks_cache_expires(jwks_response):
     with respx.mock:
         route = respx.get(JWKS_URL).respond(json=jwks_response)
@@ -48,7 +45,6 @@ async def test_fetch_platform_jwks_cache_expires(jwks_response):
         assert route.call_count == 2
 
 
-@pytest.mark.anyio
 async def test_clear_jwks_cache_forces_refetch(jwks_response):
     with respx.mock:
         route = respx.get(JWKS_URL).respond(json=jwks_response)

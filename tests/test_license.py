@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 
-import pytest
 import respx
 
 from connect.license import build_block_result, build_signal_result, verify_license_token
@@ -11,7 +10,6 @@ from connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvali
 from .conftest import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL
 
 
-@pytest.mark.anyio
 async def test_verify_valid_token(make_token, jwks_response):
     token = make_token()
 
@@ -27,7 +25,6 @@ async def test_verify_valid_token(make_token, jwks_response):
     assert result.payload["iss"] == SUPERTAB_BASE_URL
 
 
-@pytest.mark.anyio
 async def test_verify_missing_token(mock_jwks):
     result = await verify_license_token(
         "", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
@@ -37,7 +34,6 @@ async def test_verify_missing_token(mock_jwks):
     assert result.reason is LicenseTokenInvalidReason.MISSING_TOKEN
 
 
-@pytest.mark.anyio
 async def test_verify_expired_token(make_token, jwks_response):
     token = make_token(exp_delta=timedelta(seconds=-60))
 
@@ -52,7 +48,6 @@ async def test_verify_expired_token(make_token, jwks_response):
     assert result.license_id == "lic_test_123"
 
 
-@pytest.mark.anyio
 async def test_verify_invalid_issuer(make_token, mock_jwks):
     token = make_token(issuer="https://evil.example.com")
 
@@ -64,7 +59,6 @@ async def test_verify_invalid_issuer(make_token, mock_jwks):
     assert result.reason is LicenseTokenInvalidReason.INVALID_ISSUER
 
 
-@pytest.mark.anyio
 async def test_verify_invalid_audience(make_token, mock_jwks):
     token = make_token(audience="https://other-site.com/page")
 
@@ -76,7 +70,6 @@ async def test_verify_invalid_audience(make_token, mock_jwks):
     assert result.reason is LicenseTokenInvalidReason.INVALID_AUDIENCE
 
 
-@pytest.mark.anyio
 async def test_verify_invalid_algorithm(mock_jwks):
     import jwt as pyjwt
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -99,7 +92,6 @@ async def test_verify_invalid_algorithm(mock_jwks):
     assert result.reason is LicenseTokenInvalidReason.INVALID_ALG
 
 
-@pytest.mark.anyio
 async def test_verify_invalid_header(mock_jwks):
     result = await verify_license_token(
         "not-a-jwt", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
@@ -109,7 +101,6 @@ async def test_verify_invalid_header(mock_jwks):
     assert result.reason is LicenseTokenInvalidReason.INVALID_HEADER
 
 
-@pytest.mark.anyio
 async def test_verify_jwks_key_not_found_triggers_retry(make_token, jwks_response):
     """When the cached JWKS doesn't have the kid, the cache is cleared and a refetch is attempted."""
     token = make_token()
@@ -130,7 +121,21 @@ async def test_verify_jwks_key_not_found_triggers_retry(make_token, jwks_respons
     assert route.call_count == 2
 
 
-@pytest.mark.anyio
+async def test_verify_jwks_key_not_found_after_retry_returns_invalid(make_token):
+    """When the kid is missing even after a JWKS cache refresh, return an InvalidLicenseToken."""
+    token = make_token()
+    empty_jwks = {"keys": []}
+
+    with respx.mock:
+        respx.get(JWKS_URL).respond(json=empty_jwks)
+        result = await verify_license_token(
+            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
+        )
+
+    assert isinstance(result, InvalidLicenseToken)
+    assert result.reason is LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED
+
+
 async def test_verify_jwks_fetch_failure(make_token):
     token = make_token()
 
@@ -144,7 +149,6 @@ async def test_verify_jwks_fetch_failure(make_token):
     assert result.reason is LicenseTokenInvalidReason.SERVER_ERROR
 
 
-@pytest.mark.anyio
 async def test_verify_audience_prefix_match(make_token, jwks_response):
     """Audience matching uses startsWith — a base URL audience should match deeper paths."""
     token = make_token(audience="https://example.com/premium")
