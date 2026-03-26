@@ -24,6 +24,3 @@ def _score_path_pattern(pattern: str, path: str) -> int:
         return len(normalized_pattern.replace("*", ""))
 
     return -1
-
-
-__all__ = []

@@ -69,6 +69,3 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         len(content_blocks),
     )
     return content_blocks
-
-
-__all__ = []

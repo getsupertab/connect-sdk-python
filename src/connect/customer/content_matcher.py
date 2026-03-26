@@ -71,6 +71,3 @@ def _find_best_matching_content(
         _debug_log(debug, "No matching content block found for %s", resource_url)
 
     return best_match
-
-
-__all__ = []
