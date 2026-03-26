@@ -21,7 +21,7 @@ from connect.customer.content_parser import _parse_content_elements
 LOGGER = logging.getLogger(__name__)
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
-_LICENSE_TOKEN_CACHE: dict[str, "_CachedToken"] = {}
+_LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ def _build_origin(resource_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _get_cached_token(cache_key: str, debug: bool = False) -> str | None:
+def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | None:
     cached = _LICENSE_TOKEN_CACHE.get(cache_key)
     if cached is None:
         return None
@@ -123,8 +123,11 @@ def _select_signing_key(
     if isinstance(key, rsa.RSAPrivateKey):
         return key, "RS256"
 
-    for algorithm in _SUPPORTED_ALGS:
-        _debug_log(debug, "Private key did not import using %s, retrying...", algorithm)
+    _debug_log(
+        debug,
+        "Unsupported private key type %s; expected RSA or P-256 EC private key.",
+        type(key).__name__,
+    )
 
     raise SupertabConnectError(
         "Unsupported private key format. Expected RSA or P-256 EC private key."
@@ -228,7 +231,7 @@ def obtain_license_token(
     the requested resource, finds the best matching ``<content>`` block, and
     exchanges the client credentials for a license token.
     """
-    cache_key = f"{client_id}:{resource_url}"
+    cache_key = (client_id, resource_url)
     cached = _get_cached_token(cache_key, debug)
     if cached is not None:
         return cached
@@ -295,8 +298,8 @@ def obtain_license_token(
         exp = claims.get("exp")
         if isinstance(exp, int):
             _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
-    except Exception:
-        _debug_log(debug, "Failed to decode token for caching, skipping cache")
+    except (jwt.PyJWTError, ValueError, TypeError) as error:
+        _debug_log(debug, "Failed to decode token for caching, skipping cache: %s", error)
 
     return token
 
