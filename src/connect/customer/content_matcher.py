@@ -24,12 +24,10 @@ def _find_best_matching_content(
     host = parsed.netloc
     path = parsed.path
     if not parsed.scheme or not host:
-        _debug_log(debug, "Cannot parse resource URL: %s", resource_url)
+        _debug_log(debug, f"Cannot parse resource URL: {resource_url}")
         return None
 
-    _debug_log(
-        debug, "Matching resource URL: %s (host=%s, path=%s)", resource_url, host, path
-    )
+    _debug_log(debug, f"Matching resource URL: {resource_url} (host={host}, path={path})")
 
     best_match: _ContentBlock | None = None
     best_specificity = -1
@@ -37,22 +35,18 @@ def _find_best_matching_content(
     for block in content_blocks:
         pattern = urllib.parse.urlparse(block.url_pattern)
         if not pattern.scheme or not pattern.netloc:
-            _debug_log(
-                debug, "Skipping block with invalid URL pattern: %s", block.url_pattern
-            )
+            _debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
             continue
 
         if pattern.netloc != host:
             _debug_log(
                 debug,
-                "Skipping block: host mismatch (pattern=%s, resource=%s)",
-                pattern.netloc,
-                host,
+                f"Skipping block: host mismatch (pattern={pattern.netloc}, resource={host})",
             )
             continue
 
         if pattern.path == path:
-            _debug_log(debug, "Exact match found: %s", block.url_pattern)
+            _debug_log(debug, f"Exact match found: {block.url_pattern}")
             return block
 
         specificity = _score_path_pattern(pattern.path or "/", path or "/")
@@ -63,11 +57,9 @@ def _find_best_matching_content(
     if best_match is not None:
         _debug_log(
             debug,
-            "Wildcard match found: %s (specificity=%s)",
-            best_match.url_pattern,
-            best_specificity,
+            f"Wildcard match found: {best_match.url_pattern} (specificity={best_specificity})",
         )
     else:
-        _debug_log(debug, "No matching content block found for %s", resource_url)
+        _debug_log(debug, f"No matching content block found for {resource_url}")
 
     return best_match

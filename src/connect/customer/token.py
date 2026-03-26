@@ -56,8 +56,7 @@ def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | 
     if cached.exp > now + 30:
         _debug_log(
             debug,
-            "Using cached license token (expires in %ss)",
-            cached.exp - now,
+            f"Using cached license token (expires in {cached.exp - now}s)",
         )
         return cached.token
 
@@ -70,7 +69,7 @@ def _read_json_response(response: Any, debug: bool) -> dict[str, Any]:
     try:
         return json.loads(response.read().decode("utf-8"))
     except json.JSONDecodeError as error:
-        _error_log(debug, "Failed to parse license token response as JSON: %s", error)
+        _error_log(debug, f"Failed to parse license token response as JSON: {error}")
         raise SupertabConnectError("Failed to parse license token response as JSON") from error
 
 
@@ -87,11 +86,11 @@ def _retrieve_license_token(
         message = (
             f"Failed to obtain license token: {error.code} {error.reason}{suffix}"
         )
-        _error_log(debug, "Error generating license token: %s", message)
+        _error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
     except urllib.error.URLError as error:
         message = f"Failed to obtain license token: {error.reason}"
-        _error_log(debug, "Error generating license token: %s", message)
+        _error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
 
     access_token = payload.get("access_token")
@@ -108,7 +107,7 @@ def _select_signing_key(
     try:
         key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
     except (TypeError, ValueError) as error:
-        _error_log(debug, "Failed to load private key: %s", error)
+        _error_log(debug, f"Failed to load private key: {error}")
         raise SupertabConnectError(
             "Unsupported private key format. Expected RSA or P-256 EC private key."
         ) from error
@@ -125,8 +124,7 @@ def _select_signing_key(
 
     _debug_log(
         debug,
-        "Unsupported private key type %s; expected RSA or P-256 EC private key.",
-        type(key).__name__,
+        f"Unsupported private key type {type(key).__name__}; expected RSA or P-256 EC private key.",
     )
 
     raise SupertabConnectError(
@@ -202,19 +200,17 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
     except urllib.error.HTTPError as error:
         _error_log(
             debug,
-            "Failed to fetch license.xml from %s: %s",
-            license_xml_url,
-            error.code,
+            f"Failed to fetch license.xml from {license_xml_url}: {error.code}",
         )
         raise SupertabConnectError(
             f"Failed to fetch license.xml from {license_xml_url}: {error.code}"
         ) from error
     except urllib.error.URLError as error:
         message = f"Failed to fetch license.xml from {license_xml_url}: {error.reason}"
-        _error_log(debug, "%s", message)
+        _error_log(debug, message)
         raise SupertabConnectError(message) from error
 
-    _debug_log(debug, "Fetched license.xml from %s", license_xml_url)
+    _debug_log(debug, f"Fetched license.xml from {license_xml_url}")
     return xml
 
 
@@ -237,7 +233,7 @@ def obtain_license_token(
         return cached
 
     xml = _fetch_license_xml(resource_url, debug)
-    _debug_log(debug, "Fetched license.xml (%s chars)", len(xml))
+    _debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
     content_blocks = _parse_content_elements(xml, debug)
 
     if not content_blocks:
@@ -251,16 +247,14 @@ def obtain_license_token(
         patterns = ", ".join(block.url_pattern for block in content_blocks)
         _error_log(
             debug,
-            "No <content> element matches resource URL: %s. Available patterns: %s",
-            resource_url,
-            patterns,
+            f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
         )
         raise SupertabConnectError(
             f"No <content> element in license.xml matches resource URL: {resource_url}"
         )
 
     token_endpoint = matched_content.server.rstrip("/") + "/token"
-    _debug_log(debug, "Requesting license token from %s", token_endpoint)
+    _debug_log(debug, f"Requesting license token from {token_endpoint}")
 
     auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
     body = urllib.parse.urlencode(
@@ -299,7 +293,7 @@ def obtain_license_token(
         if isinstance(exp, int):
             _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
     except (jwt.PyJWTError, ValueError, TypeError) as error:
-        _debug_log(debug, "Failed to decode token for caching, skipping cache: %s", error)
+        _debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
 
     return token
 

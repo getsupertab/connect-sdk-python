@@ -57,15 +57,8 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         )
         _debug_log(
             debug,
-            "Skipping <content> element #%s: missing %s",
-            element_count,
-            missing,
+            f"Skipping <content> element #{element_count}: missing {missing}",
         )
 
-    _debug_log(
-        debug,
-        "Found %s <content> element(s), %s valid",
-        element_count,
-        len(content_blocks),
-    )
+    _debug_log(debug, f"Found {element_count} <content> element(s), {len(content_blocks)} valid")
     return content_blocks
