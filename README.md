@@ -34,11 +34,4 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned 
 │   ├── obtain_license_token.py
 │   └── obtain_and_verify_license_token.py
 └── tests
-    ├── test_public_api.py
-    ├── test_jwks.py
-    ├── test_license.py
-    └── customer
-        ├── test_content_matcher.py
-        ├── test_content_parser.py
-        └── test_tokens.py
 ```
