@@ -97,9 +97,7 @@ def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
         ("/page.html$", "/pagexhtml", -1),
     ],
 )
-def test_score_path_pattern_handles_all_cases(
-    pattern: str, path: str, expected: int
-) -> None:
+def test_score_path_pattern_handles_all_cases(pattern: str, path: str, expected: int) -> None:
     assert _score_path_pattern(pattern, path) == expected
 
 

@@ -26,7 +26,11 @@ license-files = ["LICEN[CS]E*"]
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.4.2",
+  "prek>=0.3.8",
   "pytest>=8,<9",
+  "ruff>=0.15.7",
+  "ty>=0.0.25",
 ]
 
 [project.urls]
@@ -34,5 +38,8 @@ Homepage = "https://www.supertab.co/supertab-connect"
 Repository = "https://github.com/getsupertab/connect-sdk-python"
 Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
 
+[tool.ruff]
+line-length = 119
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/connect"]
+packages = ["connect"]
