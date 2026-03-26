@@ -42,4 +42,4 @@ Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
 line-length = 119
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/connect"]
+packages = ["connect"]
