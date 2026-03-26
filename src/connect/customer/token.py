@@ -58,9 +58,7 @@ def _read_json_response(response: Any, debug: bool) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
     except json.JSONDecodeError as error:
         error_log(debug, f"Failed to parse license token response as JSON: {error}")
-        raise SupertabConnectError(
-            "Failed to parse license token response as JSON"
-        ) from error
+        raise SupertabConnectError("Failed to parse license token response as JSON") from error
 
 
 def _retrieve_license_token(
@@ -96,16 +94,12 @@ def _select_signing_key(
         key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
     except (TypeError, ValueError) as error:
         error_log(debug, f"Failed to load private key: {error}")
-        raise SupertabConnectError(
-            "Unsupported private key format. Expected RSA or P-256 EC private key."
-        ) from error
+        raise SupertabConnectError("Unsupported private key format. Expected RSA or P-256 EC private key.") from error
 
     if isinstance(key, ec.EllipticCurvePrivateKey):
         if isinstance(key.curve, ec.SECP256R1):
             return key, "ES256"
-        raise SupertabConnectError(
-            "Unsupported private key format. Expected RSA or P-256 EC private key."
-        )
+        raise SupertabConnectError("Unsupported private key format. Expected RSA or P-256 EC private key.")
 
     if isinstance(key, rsa.RSAPrivateKey):
         return key, "RS256"
@@ -115,9 +109,7 @@ def _select_signing_key(
         f"Unsupported private key type {type(key).__name__}; expected RSA or P-256 EC private key.",
     )
 
-    raise SupertabConnectError(
-        "Unsupported private key format. Expected RSA or P-256 EC private key."
-    )
+    raise SupertabConnectError("Unsupported private key format. Expected RSA or P-256 EC private key.")
 
 
 def _generate_license_token(
@@ -156,9 +148,7 @@ def _generate_license_token(
     body = urllib.parse.urlencode(
         {
             "grant_type": "rsl",
-            "client_assertion_type": (
-                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
-            ),
+            "client_assertion_type": ("urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
             "client_assertion": client_assertion,
             "license": license_xml,
             "resource": resource_url,
@@ -190,9 +180,7 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
             debug,
             f"Failed to fetch license.xml from {license_xml_url}: {error.code}",
         )
-        raise SupertabConnectError(
-            f"Failed to fetch license.xml from {license_xml_url}: {error.code}"
-        ) from error
+        raise SupertabConnectError(f"Failed to fetch license.xml from {license_xml_url}: {error.code}") from error
     except urllib.error.URLError as error:
         message = f"Failed to fetch license.xml from {license_xml_url}: {error.reason}"
         error_log(debug, message)
@@ -225,12 +213,8 @@ def obtain_license_token(
     content_blocks = _parse_content_elements(xml, debug)
 
     if not content_blocks:
-        error_log(
-            debug, "No valid <content> elements with <license> found in license.xml"
-        )
-        raise SupertabConnectError(
-            "No valid <content> elements with <license> found in license.xml"
-        )
+        error_log(debug, "No valid <content> elements with <license> found in license.xml")
+        raise SupertabConnectError("No valid <content> elements with <license> found in license.xml")
 
     matched_content = _find_best_matching_content(content_blocks, resource_url, debug)
     if matched_content is None:
@@ -239,17 +223,12 @@ def obtain_license_token(
             debug,
             f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
         )
-        raise SupertabConnectError(
-            f"No <content> element in license.xml matches resource URL: {resource_url}"
-        )
+        raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
 
     token_endpoint = matched_content.server.rstrip("/") + "/token"
     debug_log(debug, f"Requesting license token from {token_endpoint}")
 
-    auth = (
-        base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8"))
-        .decode("ascii")
-    )
+    auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
     body = urllib.parse.urlencode(
         {
             "grant_type": "client_credentials",

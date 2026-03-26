@@ -29,9 +29,7 @@ def test_obtain_license_token_fetches_and_caches_token(
     license_xml_url = "http://127.0.0.1:7676/license.xml"
     matched_resource_pattern = "http://127.0.0.1:7676/article/*"
     token_endpoint = "http://127.0.0.1:8787/token"
-    expected_basic_auth = base64.b64encode(
-        f"{client_id}:{client_secret}".encode("utf-8")
-    ).decode("ascii")
+    expected_basic_auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
 
     def fake_urlopen(request):  # type: ignore[no-untyped-def]
         url = request.full_url
@@ -235,9 +233,7 @@ def test_obtain_license_token_raises_on_token_endpoint_failure(
 
     monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
-    with pytest.raises(
-        SupertabConnectError, match="Failed to obtain license token: 500"
-    ):
+    with pytest.raises(SupertabConnectError, match="Failed to obtain license token: 500"):
         obtain_license_token(
             client_id="client",
             client_secret="secret",
@@ -257,9 +253,7 @@ def test_obtain_license_token_raises_on_invalid_json_response(
 
     monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
-    with pytest.raises(
-        SupertabConnectError, match="Failed to parse license token response as JSON"
-    ):
+    with pytest.raises(SupertabConnectError, match="Failed to parse license token response as JSON"):
         obtain_license_token(
             client_id="client",
             client_secret="secret",
@@ -279,9 +273,7 @@ def test_obtain_license_token_raises_when_access_token_missing(
 
     monkeypatch.setattr("connect.customer.token.urllib.request.urlopen", fake_urlopen)
 
-    with pytest.raises(
-        SupertabConnectError, match="License token response missing access_token"
-    ):
+    with pytest.raises(SupertabConnectError, match="License token response missing access_token"):
         obtain_license_token(
             client_id="client",
             client_secret="secret",

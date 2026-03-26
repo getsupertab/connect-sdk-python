@@ -47,7 +47,5 @@ def test_parse_content_elements_parses_multiple_blocks() -> None:
         ("<root><other>stuff</other></root>", []),
     ],
 )
-def test_parse_content_elements_skips_invalid_content(
-    xml: str, expected: list[_ContentBlock]
-) -> None:
+def test_parse_content_elements_skips_invalid_content(xml: str, expected: list[_ContentBlock]) -> None:
     assert _parse_content_elements(xml) == expected

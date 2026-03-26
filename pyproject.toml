@@ -37,5 +37,8 @@ Homepage = "https://www.supertab.co/supertab-connect"
 Repository = "https://github.com/getsupertab/connect-sdk-python"
 Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
 
+[tool.ruff]
+line-length = 119
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/connect"]
