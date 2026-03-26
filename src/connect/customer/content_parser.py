@@ -1,11 +1,9 @@
 """Parsing helpers for customer-side license.xml content blocks."""
 
-import logging
 import re
 from dataclasses import dataclass
-from typing import Any
 
-LOGGER = logging.getLogger(__name__)
+from connect.common import debug_log
 
 _CONTENT_RE = re.compile(r"<content\s([^>]*)>([\s\S]*?)</content>", re.IGNORECASE)
 _URL_RE = re.compile(r'url\s*=\s*"([^"]*)"', re.IGNORECASE)
@@ -18,11 +16,6 @@ class _ContentBlock:
     url_pattern: str
     license_xml: str
     server: str
-
-
-def _debug_log(enabled: bool, message: str, *args: Any) -> None:
-    if enabled:
-        LOGGER.debug(message, *args)
 
 
 def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock]:
@@ -55,10 +48,10 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
             )
             if value is not None
         )
-        _debug_log(
+        debug_log(
             debug,
             f"Skipping <content> element #{element_count}: missing {missing}",
         )
 
-    _debug_log(debug, f"Found {element_count} <content> element(s), {len(content_blocks)} valid")
+    debug_log(debug, f"Found {element_count} <content> element(s), {len(content_blocks)} valid")
     return content_blocks

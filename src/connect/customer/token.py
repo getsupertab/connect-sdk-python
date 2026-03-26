@@ -14,11 +14,10 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
+from connect.common import debug_log, error_log
 from connect.exceptions import SupertabConnectError
 from connect.customer.content_matcher import _find_best_matching_content
 from connect.customer.content_parser import _parse_content_elements
-
-LOGGER = logging.getLogger(__name__)
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
 _LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
@@ -28,16 +27,6 @@ _LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
 class _CachedToken:
     token: str
     exp: int
-
-
-def _debug_log(enabled: bool, message: str, *args: Any) -> None:
-    if enabled:
-        LOGGER.debug(message, *args)
-
-
-def _error_log(enabled: bool, message: str, *args: Any) -> None:
-    if enabled:
-        LOGGER.error(message, *args)
 
 
 def _build_origin(resource_url: str) -> str:
@@ -54,13 +43,13 @@ def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | 
 
     now = int(time.time())
     if cached.exp > now + 30:
-        _debug_log(
+        debug_log(
             debug,
             f"Using cached license token (expires in {cached.exp - now}s)",
         )
         return cached.token
 
-    _debug_log(debug, "Cached license token expired or expiring soon, refreshing")
+    debug_log(debug, "Cached license token expired or expiring soon, refreshing")
     _LICENSE_TOKEN_CACHE.pop(cache_key, None)
     return None
 
@@ -69,7 +58,7 @@ def _read_json_response(response: Any, debug: bool) -> dict[str, Any]:
     try:
         return json.loads(response.read().decode("utf-8"))
     except json.JSONDecodeError as error:
-        _error_log(debug, f"Failed to parse license token response as JSON: {error}")
+        error_log(debug, f"Failed to parse license token response as JSON: {error}")
         raise SupertabConnectError("Failed to parse license token response as JSON") from error
 
 
@@ -86,11 +75,11 @@ def _retrieve_license_token(
         message = (
             f"Failed to obtain license token: {error.code} {error.reason}{suffix}"
         )
-        _error_log(debug, f"Error generating license token: {message}")
+        error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
     except urllib.error.URLError as error:
         message = f"Failed to obtain license token: {error.reason}"
-        _error_log(debug, f"Error generating license token: {message}")
+        error_log(debug, f"Error generating license token: {message}")
         raise SupertabConnectError(message) from error
 
     access_token = payload.get("access_token")
@@ -107,7 +96,7 @@ def _select_signing_key(
     try:
         key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
     except (TypeError, ValueError) as error:
-        _error_log(debug, f"Failed to load private key: {error}")
+        error_log(debug, f"Failed to load private key: {error}")
         raise SupertabConnectError(
             "Unsupported private key format. Expected RSA or P-256 EC private key."
         ) from error
@@ -122,7 +111,7 @@ def _select_signing_key(
     if isinstance(key, rsa.RSAPrivateKey):
         return key, "RS256"
 
-    _debug_log(
+    debug_log(
         debug,
         f"Unsupported private key type {type(key).__name__}; expected RSA or P-256 EC private key.",
     )
@@ -198,7 +187,7 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
         with urllib.request.urlopen(request) as response:
             xml = response.read().decode("utf-8")
     except urllib.error.HTTPError as error:
-        _error_log(
+        error_log(
             debug,
             f"Failed to fetch license.xml from {license_xml_url}: {error.code}",
         )
@@ -207,10 +196,10 @@ def _fetch_license_xml(resource_url: str, debug: bool = False) -> str:
         ) from error
     except urllib.error.URLError as error:
         message = f"Failed to fetch license.xml from {license_xml_url}: {error.reason}"
-        _error_log(debug, message)
+        error_log(debug, message)
         raise SupertabConnectError(message) from error
 
-    _debug_log(debug, f"Fetched license.xml from {license_xml_url}")
+    debug_log(debug, f"Fetched license.xml from {license_xml_url}")
     return xml
 
 
@@ -233,11 +222,11 @@ def obtain_license_token(
         return cached
 
     xml = _fetch_license_xml(resource_url, debug)
-    _debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
+    debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
     content_blocks = _parse_content_elements(xml, debug)
 
     if not content_blocks:
-        _error_log(debug, "No valid <content> elements with <license> found in license.xml")
+        error_log(debug, "No valid <content> elements with <license> found in license.xml")
         raise SupertabConnectError(
             "No valid <content> elements with <license> found in license.xml"
         )
@@ -245,7 +234,7 @@ def obtain_license_token(
     matched_content = _find_best_matching_content(content_blocks, resource_url, debug)
     if matched_content is None:
         patterns = ", ".join(block.url_pattern for block in content_blocks)
-        _error_log(
+        error_log(
             debug,
             f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
         )
@@ -254,7 +243,7 @@ def obtain_license_token(
         )
 
     token_endpoint = matched_content.server.rstrip("/") + "/token"
-    _debug_log(debug, f"Requesting license token from {token_endpoint}")
+    debug_log(debug, f"Requesting license token from {token_endpoint}")
 
     auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
     body = urllib.parse.urlencode(
@@ -293,7 +282,7 @@ def obtain_license_token(
         if isinstance(exp, int):
             _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
     except (jwt.PyJWTError, ValueError, TypeError) as error:
-        _debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
+        debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
 
     return token
 

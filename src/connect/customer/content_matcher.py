@@ -1,18 +1,10 @@
 """Matching helpers for customer-side license content blocks."""
 
-import logging
 import urllib.parse
-from typing import Any
 
+from connect.common import debug_log
 from connect.url_pattern import _score_path_pattern
 from connect.customer.content_parser import _ContentBlock
-
-LOGGER = logging.getLogger(__name__)
-
-
-def _debug_log(enabled: bool, message: str, *args: Any) -> None:
-    if enabled:
-        LOGGER.debug(message, *args)
 
 
 def _find_best_matching_content(
@@ -24,10 +16,10 @@ def _find_best_matching_content(
     host = parsed.netloc
     path = parsed.path
     if not parsed.scheme or not host:
-        _debug_log(debug, f"Cannot parse resource URL: {resource_url}")
+        debug_log(debug, f"Cannot parse resource URL: {resource_url}")
         return None
 
-    _debug_log(debug, f"Matching resource URL: {resource_url} (host={host}, path={path})")
+    debug_log(debug, f"Matching resource URL: {resource_url} (host={host}, path={path})")
 
     best_match: _ContentBlock | None = None
     best_specificity = -1
@@ -35,18 +27,18 @@ def _find_best_matching_content(
     for block in content_blocks:
         pattern = urllib.parse.urlparse(block.url_pattern)
         if not pattern.scheme or not pattern.netloc:
-            _debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
+            debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
             continue
 
         if pattern.netloc != host:
-            _debug_log(
+            debug_log(
                 debug,
                 f"Skipping block: host mismatch (pattern={pattern.netloc}, resource={host})",
             )
             continue
 
         if pattern.path == path:
-            _debug_log(debug, f"Exact match found: {block.url_pattern}")
+            debug_log(debug, f"Exact match found: {block.url_pattern}")
             return block
 
         specificity = _score_path_pattern(pattern.path or "/", path or "/")
@@ -55,11 +47,11 @@ def _find_best_matching_content(
             best_match = block
 
     if best_match is not None:
-        _debug_log(
+        debug_log(
             debug,
             f"Wildcard match found: {best_match.url_pattern} (specificity={best_specificity})",
         )
     else:
-        _debug_log(debug, f"No matching content block found for {resource_url}")
+        debug_log(debug, f"No matching content block found for {resource_url}")
 
     return best_match
