@@ -36,6 +36,7 @@ def _install_mock_transport(
 def test_obtain_license_token_fetches_and_caches_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fetches license.xml, exchanges credentials for a token, and caches it."""
     exp = int(time.time()) + 3600
     access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
     calls = {"license_xml": 0, "token": 0}
@@ -168,6 +169,7 @@ def test_generate_license_token_builds_client_assertion_with_matching_alg(
     algorithm: str,
     key_factory,
 ) -> None:
+    """Client assertion JWT uses the correct algorithm for the given key type."""
     client_id = "client-123"
     kid = "kid-123"
     token_endpoint = "https://license.example/token"
@@ -226,6 +228,7 @@ def test_generate_license_token_builds_client_assertion_with_matching_alg(
 
 
 def test_obtain_license_token_raises_on_invalid_resource_url() -> None:
+    """Raises on a resource URL without scheme or host."""
     with pytest.raises(SupertabConnectError, match="Invalid resource URL"):
         asyncio.run(
             obtain_license_token(
@@ -239,6 +242,8 @@ def test_obtain_license_token_raises_on_invalid_resource_url() -> None:
 def test_obtain_license_token_raises_on_license_xml_http_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when license.xml fetch returns an HTTP error."""
+
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, text="Not Found", request=request)
 
@@ -257,6 +262,8 @@ def test_obtain_license_token_raises_on_license_xml_http_failure(
 def test_obtain_license_token_raises_when_no_content_elements(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when license.xml has no valid content elements."""
+
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text="<rsl></rsl>", request=request)
 
@@ -278,6 +285,7 @@ def test_obtain_license_token_raises_when_no_content_elements(
 def test_obtain_license_token_raises_when_no_matching_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when no content block matches the resource URL."""
     xml = """
     <rsl>
       <content url="http://other-host.com/*" server="http://token.other.com">
@@ -307,6 +315,7 @@ def test_obtain_license_token_raises_when_no_matching_content(
 def test_obtain_license_token_raises_on_token_endpoint_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when the token endpoint returns an HTTP error."""
     token_endpoint = "http://127.0.0.1:8787/token"
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -331,6 +340,8 @@ def test_obtain_license_token_raises_on_token_endpoint_failure(
 def test_obtain_license_token_raises_on_invalid_json_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when the token endpoint returns non-JSON."""
+
     async def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url).endswith("/license.xml"):
             return httpx.Response(200, text=SAMPLE_XML, request=request)
@@ -353,6 +364,8 @@ def test_obtain_license_token_raises_on_invalid_json_response(
 def test_obtain_license_token_raises_when_access_token_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Raises when the token response JSON has no access_token field."""
+
     async def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url).endswith("/license.xml"):
             return httpx.Response(200, text=SAMPLE_XML, request=request)

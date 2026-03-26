@@ -6,6 +6,7 @@ from tests.customer.conftest import SAMPLE_XML
 
 
 def test_parse_content_elements_parses_multiple_blocks() -> None:
+    """Parses all valid content blocks from a multi-content license.xml."""
     blocks = _parse_content_elements(SAMPLE_XML)
 
     assert len(blocks) == 3
@@ -51,4 +52,5 @@ def test_parse_content_elements_parses_multiple_blocks() -> None:
     ],
 )
 def test_parse_content_elements_skips_invalid_content(xml: str) -> None:
+    """Invalid or incomplete content elements produce no blocks."""
     assert _parse_content_elements(xml) == []
