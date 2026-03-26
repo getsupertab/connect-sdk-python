@@ -15,9 +15,7 @@ async def test_verify_valid_token(make_token, jwks_response):
 
     with respx.mock:
         respx.get(JWKS_URL).respond(json=jwks_response)
-        result = await verify_license_token(
-            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-        )
+        result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, ValidLicenseToken)
     assert result.valid is True
@@ -26,9 +24,7 @@ async def test_verify_valid_token(make_token, jwks_response):
 
 
 async def test_verify_missing_token(mock_jwks):
-    result = await verify_license_token(
-        "", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-    )
+    result = await verify_license_token("", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.MISSING_TOKEN
@@ -39,9 +35,7 @@ async def test_verify_expired_token(make_token, jwks_response):
 
     with respx.mock:
         respx.get(JWKS_URL).respond(json=jwks_response)
-        result = await verify_license_token(
-            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-        )
+        result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.EXPIRED
@@ -51,9 +45,7 @@ async def test_verify_expired_token(make_token, jwks_response):
 async def test_verify_invalid_issuer(make_token, mock_jwks):
     token = make_token(issuer="https://evil.example.com")
 
-    result = await verify_license_token(
-        token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-    )
+    result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.INVALID_ISSUER
@@ -62,9 +54,7 @@ async def test_verify_invalid_issuer(make_token, mock_jwks):
 async def test_verify_invalid_audience(make_token, mock_jwks):
     token = make_token(audience="https://other-site.com/page")
 
-    result = await verify_license_token(
-        token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-    )
+    result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.INVALID_AUDIENCE
@@ -84,18 +74,14 @@ async def test_verify_invalid_algorithm(mock_jwks):
         headers={"kid": "test-kid-1"},
     )
 
-    result = await verify_license_token(
-        token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-    )
+    result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.INVALID_ALG
 
 
 async def test_verify_invalid_header(mock_jwks):
-    result = await verify_license_token(
-        "not-a-jwt", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-    )
+    result = await verify_license_token("not-a-jwt", request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.INVALID_HEADER
@@ -113,9 +99,7 @@ async def test_verify_jwks_key_not_found_triggers_retry(make_token, jwks_respons
                 respx.MockResponse(json=jwks_response),
             ]
         )
-        result = await verify_license_token(
-            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-        )
+        result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, ValidLicenseToken)
     assert route.call_count == 2
@@ -128,9 +112,7 @@ async def test_verify_jwks_key_not_found_after_retry_returns_invalid(make_token)
 
     with respx.mock:
         respx.get(JWKS_URL).respond(json=empty_jwks)
-        result = await verify_license_token(
-            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-        )
+        result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED
@@ -141,9 +123,7 @@ async def test_verify_jwks_fetch_failure(make_token):
 
     with respx.mock:
         respx.get(JWKS_URL).respond(status_code=500)
-        result = await verify_license_token(
-            token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL
-        )
+        result = await verify_license_token(token, request_url=REQUEST_URL, supertab_base_url=SUPERTAB_BASE_URL)
 
     assert isinstance(result, InvalidLicenseToken)
     assert result.reason is LicenseTokenInvalidReason.SERVER_ERROR
