@@ -59,9 +59,9 @@ def _reason_to_error_description(reason: LicenseTokenInvalidReason) -> str:
     return descriptions.get(reason, "License token missing, expired, revoked, or malformed")
 
 
-def _reason_to_rsl_error(reason: LicenseTokenInvalidReason | str) -> tuple[str, int]:
+def _reason_to_rsl_error(reason: LicenseTokenInvalidReason) -> tuple[str, int]:
     """Map a reason to its RSL error string and HTTP status code."""
-    mapping: dict[str, tuple[str, int]] = {
+    mapping: dict[LicenseTokenInvalidReason, tuple[str, int]] = {
         LicenseTokenInvalidReason.MISSING_TOKEN: ("invalid_request", 401),
         LicenseTokenInvalidReason.INVALID_ALG: ("invalid_request", 401),
         LicenseTokenInvalidReason.EXPIRED: ("invalid_token", 401),
@@ -72,7 +72,7 @@ def _reason_to_rsl_error(reason: LicenseTokenInvalidReason | str) -> tuple[str, 
         LicenseTokenInvalidReason.INVALID_AUDIENCE: ("insufficient_scope", 403),
         LicenseTokenInvalidReason.SERVER_ERROR: ("server_error", 503),
     }
-    return mapping.get(str(reason), ("invalid_token", 401))
+    return mapping.get(reason, ("invalid_token", 401))
 
 
 def _sanitize_header_value(value: str) -> str:
@@ -166,8 +166,8 @@ async def verify_license_token(
             license_id=license_id,
         )
 
-    # Verify signature
-    async def _verify() -> LicenseTokenVerificationResult:
+    # Verify signature (retry once after clearing JWKS cache on key-not-found)
+    for attempt in range(2):
         try:
             jwks = await fetch_platform_jwks(supertab_base_url, debug=debug)
         except Exception:
@@ -191,7 +191,16 @@ async def verify_license_token(
             )
             return ValidLicenseToken(license_id=license_id, payload=verified_payload)
         except JwksKeyNotFoundError:
-            raise
+            if attempt == 0:
+                debug_log(debug, "Key not found in cached JWKS, clearing cache and retrying...")
+                clear_jwks_cache()
+                continue
+            debug_log(debug, "Key not found after JWKS cache refresh")
+            return InvalidLicenseToken(
+                reason=LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED,
+                error=_reason_to_error_description(LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED),
+                license_id=license_id,
+            )
         except jwt.exceptions.ExpiredSignatureError:
             debug_log(debug, "License JWT has expired")
             return InvalidLicenseToken(
@@ -207,25 +216,13 @@ async def verify_license_token(
                 license_id=license_id,
             )
 
-    try:
-        return await _verify()
-    except JwksKeyNotFoundError:
-        debug_log(debug, "Key not found in cached JWKS, clearing cache and retrying...")
-        clear_jwks_cache()
-        try:
-            return await _verify()
-        except JwksKeyNotFoundError:
-            debug_log(debug, "Key not found after JWKS cache refresh")
-            return InvalidLicenseToken(
-                reason=LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED,
-                error=_reason_to_error_description(LicenseTokenInvalidReason.SIGNATURE_VERIFICATION_FAILED),
-                license_id=license_id,
-            )
+    # Unreachable — the loop always returns — but keeps the type checker happy
+    raise RuntimeError("Unexpected state in verify_license_token")
 
 
 def build_block_result(
     *,
-    reason: LicenseTokenInvalidReason | str,
+    reason: LicenseTokenInvalidReason,
     error: str,
     request_url: str,
 ) -> dict[str, Any]:

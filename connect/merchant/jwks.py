@@ -11,6 +11,14 @@ from connect.exceptions import JwksKeyNotFoundError
 JWKS_CACHE_TTL_SECONDS = 48 * 3600  # 48 hours
 
 _jwks_cache: dict[str, dict[str, Any]] = {}
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient()
+    return _http_client
 
 
 async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str, Any]:
@@ -29,9 +37,9 @@ async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str
     debug_log(debug, f"Fetching platform JWKS from URL: {jwks_url}")
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(jwks_url)
-            response.raise_for_status()
+        client = _get_http_client()
+        response = await client.get(jwks_url)
+        response.raise_for_status()
 
         jwks_data = response.json()
         _jwks_cache[normalized_url] = {"jwks": jwks_data, "cached_at": now}

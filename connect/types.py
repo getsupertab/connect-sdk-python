@@ -50,10 +50,3 @@ LicenseTokenVerificationResult = ValidLicenseToken | InvalidLicenseToken
 class RSLVerificationResult:
     valid: bool
     error: str | None = None
-
-
-@dataclass(frozen=True)
-class EventPayload:
-    event_name: str
-    license_id: str | None
-    properties: dict[str, str]
