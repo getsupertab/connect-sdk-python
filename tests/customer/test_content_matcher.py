@@ -23,6 +23,7 @@ from tests.customer.conftest import SAMPLE_XML
 def test_find_best_matching_content_prefers_the_most_specific_pattern(
     resource_url: str, expected_pattern: str
 ) -> None:
+    """Selects the content block with the most specific URL pattern."""
     blocks = _parse_content_elements(SAMPLE_XML)
 
     match = _find_best_matching_content(blocks, resource_url)
@@ -32,18 +33,21 @@ def test_find_best_matching_content_prefers_the_most_specific_pattern(
 
 
 def test_find_best_matching_content_rejects_different_host() -> None:
+    """Returns None when the resource host doesn't match any pattern."""
     blocks = _parse_content_elements(SAMPLE_XML)
 
     assert _find_best_matching_content(blocks, "http://other-host:7676/article/foo") is None
 
 
 def test_find_best_matching_content_rejects_different_port() -> None:
+    """Returns None when the resource port doesn't match any pattern."""
     blocks = _parse_content_elements(SAMPLE_XML)
 
     assert _find_best_matching_content(blocks, "http://127.0.0.1:9999/article/foo") is None
 
 
 def test_find_best_matching_content_skips_invalid_patterns() -> None:
+    """Invalid URL patterns are skipped; valid ones still match."""
     blocks = [
         _ContentBlock(url_pattern="not-a-valid-url", server="http://x", license_xml="<license/>"),
         *_parse_content_elements(SAMPLE_XML),
@@ -56,6 +60,7 @@ def test_find_best_matching_content_skips_invalid_patterns() -> None:
 
 
 def test_find_best_matching_content_handles_port_specific_host_matching() -> None:
+    """Matching is port-specific: localhost:3000 doesn't match localhost:3001."""
     blocks = [
         _ContentBlock(
             url_pattern="http://localhost:3000/*",
@@ -69,6 +74,7 @@ def test_find_best_matching_content_handles_port_specific_host_matching() -> Non
 
 
 def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
+    """Returns None when no content blocks are provided."""
     assert _find_best_matching_content([], "http://example.com/page") is None
 
 
@@ -98,10 +104,12 @@ def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
     ],
 )
 def test_score_path_pattern_handles_all_cases(pattern: str, path: str, expected: int) -> None:
+    """Pattern scoring returns expected specificity for each pattern/path pair."""
     assert _score_path_pattern(pattern, path) == expected
 
 
 def test_score_path_pattern_prefers_more_literal_characters() -> None:
+    """More literal characters in the pattern yield a higher score."""
     path = "/content/news/article"
 
     broad = _score_path_pattern("/*", path)
