@@ -7,6 +7,7 @@ import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any
+from weakref import WeakKeyDictionary
 
 import httpx
 import jwt
@@ -19,8 +20,11 @@ from connect.customer.content_matcher import _find_best_matching_content
 from connect.customer.content_parser import _parse_content_elements
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
+_DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 _LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
-_LICENSE_TOKEN_LOCKS: dict[tuple[str, str, int], asyncio.Lock] = {}
+_LICENSE_TOKEN_LOCKS: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[str, str], asyncio.Lock]] = (
+    WeakKeyDictionary()
+)
 
 
 @dataclass(frozen=True)
@@ -56,10 +60,22 @@ def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | 
 
 def _get_cache_lock(cache_key: tuple[str, str]) -> asyncio.Lock:
     loop = asyncio.get_running_loop()
-    return _LICENSE_TOKEN_LOCKS.setdefault((*cache_key, id(loop)), asyncio.Lock())
+    loop_locks = _LICENSE_TOKEN_LOCKS.get(loop)
+    if loop_locks is None:
+        loop_locks = {}
+        _LICENSE_TOKEN_LOCKS[loop] = loop_locks
+
+    lock = loop_locks.get(cache_key)
+    if lock is None:
+        lock = asyncio.Lock()
+        loop_locks[cache_key] = lock
+
+    return lock
 
 
 def _create_async_client(**kwargs: Any) -> httpx.AsyncClient:
+    kwargs.setdefault("follow_redirects", True)
+    kwargs.setdefault("timeout", httpx.Timeout(_DEFAULT_HTTP_TIMEOUT_SECONDS))
     return httpx.AsyncClient(**kwargs)
 
 

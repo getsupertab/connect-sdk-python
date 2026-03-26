@@ -10,7 +10,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from connect.customer.token import _generate_license_token, obtain_license_token
+from connect.customer.token import _create_async_client, _generate_license_token, obtain_license_token
 from connect.exceptions import SupertabConnectError
 
 from tests.customer.conftest import SAMPLE_XML
@@ -22,9 +22,14 @@ def _install_mock_transport(
     monkeypatch: pytest.MonkeyPatch,
     handler: AsyncHandler,
 ) -> None:
+    def create_mock_client(**kwargs: Any) -> httpx.AsyncClient:
+        kwargs.setdefault("follow_redirects", True)
+        kwargs.setdefault("timeout", httpx.Timeout(10.0))
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler), **kwargs)
+
     monkeypatch.setattr(
         "connect.customer.token._create_async_client",
-        lambda **kwargs: httpx.AsyncClient(transport=httpx.MockTransport(handler), **kwargs),
+        create_mock_client,
     )
 
 
@@ -78,6 +83,74 @@ def test_obtain_license_token_fetches_and_caches_token(
     assert token == access_token
     assert cached == access_token
     assert calls == {"license_xml": 1, "token": 1}
+
+
+def test_create_async_client_uses_safe_defaults() -> None:
+    async def run() -> None:
+        async with _create_async_client() as client:
+            assert client.follow_redirects is True
+            assert client.timeout.connect == 10.0
+            assert client.timeout.read == 10.0
+            assert client.timeout.write == 10.0
+            assert client.timeout.pool == 10.0
+
+    asyncio.run(run())
+
+
+def test_obtain_license_token_follows_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    resource_url = "http://127.0.0.1:7676/article/foo"
+    initial_license_xml_url = "http://127.0.0.1:7676/license.xml"
+    redirected_license_xml_url = "http://127.0.0.1:7676/redirected-license.xml"
+    initial_token_endpoint = "http://127.0.0.1:8787/token"
+    redirected_token_endpoint = "http://127.0.0.1:8787/redirected-token"
+    calls = {"license_redirect": 0, "license_final": 0, "token_redirect": 0, "token_final": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == initial_license_xml_url:
+            calls["license_redirect"] += 1
+            return httpx.Response(
+                307,
+                headers={"Location": redirected_license_xml_url},
+                request=request,
+            )
+        if url == redirected_license_xml_url:
+            calls["license_final"] += 1
+            return httpx.Response(200, text=SAMPLE_XML, request=request)
+        if url == initial_token_endpoint:
+            calls["token_redirect"] += 1
+            return httpx.Response(
+                307,
+                headers={"Location": redirected_token_endpoint},
+                request=request,
+            )
+        if url == redirected_token_endpoint:
+            calls["token_final"] += 1
+            return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=resource_url,
+        )
+    )
+
+    assert token == access_token
+    assert calls == {
+        "license_redirect": 1,
+        "license_final": 1,
+        "token_redirect": 1,
+        "token_final": 1,
+    }
 
 
 @pytest.mark.parametrize(
