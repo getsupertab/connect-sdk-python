@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from connect import obtain_license_token, verify_license_token
+from connect.types import InvalidLicenseToken, ValidLicenseToken
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -25,9 +26,9 @@ async def main() -> None:
         debug=True,
     )
 
-    if result.valid:
+    if isinstance(result, ValidLicenseToken):
         print(f"Token is VALID (license_id={result.license_id})")
-    else:
+    elif isinstance(result, InvalidLicenseToken):
         print(f"Token is INVALID: {result.reason} — {result.error}")
 
 
