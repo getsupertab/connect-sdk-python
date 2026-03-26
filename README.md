@@ -6,6 +6,8 @@ Python SDK for Supertab Connect.
 
 This project uses a `src/` layout and `hatchling` as the build backend.
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned development commands.
+
 ## Package Layout
 
 ```text
