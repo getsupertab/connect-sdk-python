@@ -1,6 +1,6 @@
 import pytest
 
-from connect.customer.token import _LICENSE_TOKEN_CACHE
+from connect.customer.token import _LICENSE_TOKEN_CACHE, _LICENSE_TOKEN_LOCKS
 
 SAMPLE_XML = """
 <rsl xmlns="https://rslstandard.org/rsl">
@@ -23,21 +23,7 @@ SAMPLE_XML = """
 """
 
 
-class FakeResponse:
-    def __init__(self, body: str, status: int = 200) -> None:
-        self._body = body.encode("utf-8")
-        self.status = status
-
-    def read(self) -> bytes:
-        return self._body
-
-    def __enter__(self) -> "FakeResponse":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        return None
-
-
 @pytest.fixture(autouse=True)
 def clear_token_cache() -> None:
     _LICENSE_TOKEN_CACHE.clear()
+    _LICENSE_TOKEN_LOCKS.clear()
