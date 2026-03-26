@@ -11,9 +11,6 @@ authors = [
 description = "Supertab Connect SDK"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-  "PyJWT[crypto]>=2.10,<3",
-]
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
@@ -36,18 +33,13 @@ dev = [
   "ruff>=0.8",
 ]
 
-[project.optional-dependencies]
-dev = [
-  "pytest>=8,<9",
-]
-
 [project.urls]
 Homepage = "https://www.supertab.co/supertab-connect"
 Repository = "https://github.com/getsupertab/connect-sdk-python"
 Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/connect"]
+packages = ["connect"]
 
 [tool.ruff]
 line-length = 119

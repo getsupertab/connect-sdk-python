@@ -2,7 +2,6 @@
 
 import base64
 import json
-import logging
 import time
 import urllib.error
 import urllib.parse
