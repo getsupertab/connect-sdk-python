@@ -9,9 +9,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 def main() -> None:
     token = obtain_license_token(
-        client_id="stc.549d1c48-90b3-47b7-8ff8-b6bb8ec02614",
-        client_secret="stc_secret_D_EuYUw3PLBy6TgmmXVcjDKHoQyaAHhFBnMi4kPfIvc",
-        resource_url="https://d1klfqmhp1tqhv.cloudfront.net/",
+        client_id="your_client_id",
+        client_secret="your_client_secret",
+        resource_url="https://example.com",
         debug=True,
     )
 
