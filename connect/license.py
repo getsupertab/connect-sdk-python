@@ -22,6 +22,18 @@ def _strip_trailing_slash(value: str) -> str:
     return re.sub(r"/+$", "", value.strip())
 
 
+def _audience_matches(request_url: str, audience: str) -> bool:
+    """Check if the request URL matches an audience value.
+
+    The audience must be an exact match or a path prefix boundary (followed by '/').
+    This prevents '/premium' from matching '/premium-evil'.
+    """
+    normalized_aud = _strip_trailing_slash(audience)
+    if request_url == normalized_aud:
+        return True
+    return request_url.startswith(normalized_aud + "/")
+
+
 def _generate_license_link(request_url: str) -> str:
     try:
         parsed = urlparse(request_url)
@@ -105,7 +117,18 @@ async def verify_license_token(
 
     # Decode payload without verification
     try:
-        unverified_payload = jwt.decode(license_token, options={"verify_signature": False})
+        unverified_payload = jwt.decode(
+            license_token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_nbf": False,
+                "verify_iat": False,
+                "verify_aud": False,
+                "verify_iss": False,
+            },
+            algorithms=["ES256"],
+        )
     except jwt.exceptions.DecodeError:
         debug_log(debug, "Invalid license JWT payload")
         return InvalidLicenseToken(
@@ -130,12 +153,10 @@ async def verify_license_token(
 
     # Validate audience
     aud = unverified_payload.get("aud", [])
-    audience_values: list[str] = aud if isinstance(aud, list) else [aud] if isinstance(aud, str) else []
+    audience_values: list[str] = [a for a in (aud if isinstance(aud, list) else [aud]) if isinstance(a, str) and a]
 
     request_url_normalized = _strip_trailing_slash(request_url)
-    matches_request_url = any(
-        request_url_normalized.startswith(_strip_trailing_slash(a)) for a in audience_values if a
-    )
+    matches_request_url = any(_audience_matches(request_url_normalized, a) for a in audience_values)
 
     if not matches_request_url:
         debug_log(debug, f"License JWT audience does not match request URL: {aud}")

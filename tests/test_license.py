@@ -150,7 +150,7 @@ async def test_verify_jwks_fetch_failure(make_token):
 
 
 async def test_verify_audience_prefix_match(make_token, jwks_response):
-    """Audience matching uses startsWith — a base URL audience should match deeper paths."""
+    """Audience matching allows deeper paths under the audience base URL."""
     token = make_token(audience="https://example.com/premium")
 
     with respx.mock:
@@ -160,6 +160,18 @@ async def test_verify_audience_prefix_match(make_token, jwks_response):
         )
 
     assert isinstance(result, ValidLicenseToken)
+
+
+async def test_verify_audience_rejects_partial_path_match(make_token, mock_jwks):
+    """Audience '/premium' must not match '/premium-evil' — only path boundaries count."""
+    token = make_token(audience="https://example.com/premium")
+
+    result = await verify_license_token(
+        token, request_url="https://example.com/premium-evil", supertab_base_url=SUPERTAB_BASE_URL
+    )
+
+    assert isinstance(result, InvalidLicenseToken)
+    assert result.reason is LicenseTokenInvalidReason.INVALID_AUDIENCE
 
 
 def test_build_block_result_missing_token():

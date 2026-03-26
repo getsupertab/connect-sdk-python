@@ -19,12 +19,13 @@ async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str
     Results are cached per base_url for 48 hours. Subsequent calls within
     the TTL return the cached key set without making a network request.
     """
+    normalized_url = base_url.rstrip("/")
     now = time.monotonic()
-    cached = _jwks_cache.get(base_url)
+    cached = _jwks_cache.get(normalized_url)
     if cached is not None and (now - cached["cached_at"]) < JWKS_CACHE_TTL_SECONDS:
-        return cached["keys"]
+        return cached["jwks"]
 
-    jwks_url = f"{base_url}/.well-known/jwks.json/platform"
+    jwks_url = f"{normalized_url}/.well-known/jwks.json/platform"
     debug_log(debug, f"Fetching platform JWKS from URL: {jwks_url}")
 
     try:
@@ -33,7 +34,7 @@ async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str
             response.raise_for_status()
 
         jwks_data = response.json()
-        _jwks_cache[base_url] = {"keys": jwks_data, "cached_at": now}
+        _jwks_cache[normalized_url] = {"jwks": jwks_data, "cached_at": now}
         return jwks_data
     except httpx.HTTPError as exc:
         error_log(debug, f"Error fetching platform JWKS: {exc}")
