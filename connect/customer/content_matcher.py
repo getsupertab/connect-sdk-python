@@ -14,7 +14,7 @@ def _find_best_matching_content(
 ) -> _ContentBlock | None:
     parsed = urllib.parse.urlparse(resource_url)
     host = parsed.netloc
-    path = parsed.path
+    path = parsed.path or "/"
     if not parsed.scheme or not host:
         debug_log(debug, f"Cannot parse resource URL: {resource_url}")
         return None
@@ -48,7 +48,7 @@ def _find_best_matching_content(
             debug_log(debug, f"Exact match found: {block.url_pattern}")
             return block
 
-        specificity = _score_path_pattern(pattern_path, path or "/")
+        specificity = _score_path_pattern(pattern_path, path)
         if specificity > best_specificity:
             best_specificity = specificity
             best_match = block

@@ -123,6 +123,18 @@ def test_find_best_matching_content_mixes_full_url_and_path_only() -> None:
     assert match.url_pattern == "/article/*"
 
 
+def test_find_best_matching_content_matches_root_url_without_trailing_slash() -> None:
+    """A resource URL with no path (e.g. http://host) matches a / pattern."""
+    blocks = [
+        _ContentBlock(url_pattern="/", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    match = _find_best_matching_content(blocks, "http://127.0.0.1:7676")
+
+    assert match is not None
+    assert match.url_pattern == "/"
+
+
 def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
     """Returns None when no content blocks are provided."""
     assert _find_best_matching_content([], "http://example.com/page") is None
