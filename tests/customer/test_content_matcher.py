@@ -73,6 +73,56 @@ def test_find_best_matching_content_handles_port_specific_host_matching() -> Non
     assert _find_best_matching_content(blocks, "http://localhost:3001/page") is None
 
 
+def test_find_best_matching_content_matches_path_only_pattern() -> None:
+    """Path-only patterns (starting with /) match regardless of host."""
+    blocks = [
+        _ContentBlock(url_pattern="/article/*", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    match = _find_best_matching_content(blocks, "http://127.0.0.1:7676/article/foo")
+
+    assert match is not None
+    assert match.url_pattern == "/article/*"
+
+
+def test_find_best_matching_content_exact_path_only_wins_over_wildcard() -> None:
+    """Exact path-only match beats a path-only wildcard."""
+    blocks = [
+        _ContentBlock(url_pattern="/*", server="http://127.0.0.1:8787", license_xml="<license/>"),
+        _ContentBlock(url_pattern="/article/foo", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    match = _find_best_matching_content(blocks, "http://127.0.0.1:7676/article/foo")
+
+    assert match is not None
+    assert match.url_pattern == "/article/foo"
+
+
+def test_find_best_matching_content_path_only_matches_any_host() -> None:
+    """Path-only patterns match any host."""
+    blocks = [
+        _ContentBlock(url_pattern="/article/*", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    match = _find_best_matching_content(blocks, "http://totally-different-host.com/article/foo")
+
+    assert match is not None
+    assert match.url_pattern == "/article/*"
+
+
+def test_find_best_matching_content_mixes_full_url_and_path_only() -> None:
+    """Path-only pattern with higher specificity wins over full-URL pattern."""
+    blocks = [
+        _ContentBlock(url_pattern="http://127.0.0.1:7676/*", server="http://127.0.0.1:8787", license_xml="<license/>"),
+        _ContentBlock(url_pattern="/article/*", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    match = _find_best_matching_content(blocks, "http://127.0.0.1:7676/article/foo")
+
+    assert match is not None
+    assert match.url_pattern == "/article/*"
+
+
 def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
     """Returns None when no content blocks are provided."""
     assert _find_best_matching_content([], "http://example.com/page") is None

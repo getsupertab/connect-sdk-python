@@ -25,23 +25,30 @@ def _find_best_matching_content(
     best_specificity = -1
 
     for block in content_blocks:
-        pattern = urllib.parse.urlparse(block.url_pattern)
-        if not pattern.scheme or not pattern.netloc:
-            debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
-            continue
+        is_path_only = block.url_pattern.startswith("/")
 
-        if pattern.netloc != host:
-            debug_log(
-                debug,
-                f"Skipping block: host mismatch (pattern={pattern.netloc}, resource={host})",
-            )
-            continue
+        if is_path_only:
+            pattern_path = block.url_pattern
+        else:
+            pattern = urllib.parse.urlparse(block.url_pattern)
+            if not pattern.scheme or not pattern.netloc:
+                debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
+                continue
 
-        if pattern.path == path:
+            if pattern.netloc != host:
+                debug_log(
+                    debug,
+                    f"Skipping block: host mismatch (pattern={pattern.netloc}, resource={host})",
+                )
+                continue
+
+            pattern_path = pattern.path or "/"
+
+        if pattern_path == path:
             debug_log(debug, f"Exact match found: {block.url_pattern}")
             return block
 
-        specificity = _score_path_pattern(pattern.path or "/", path or "/")
+        specificity = _score_path_pattern(pattern_path, path or "/")
         if specificity > best_specificity:
             best_specificity = specificity
             best_match = block
