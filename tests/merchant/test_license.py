@@ -1,5 +1,6 @@
 """Tests for license token verification and result builders."""
 
+import json
 from datetime import timedelta
 
 import respx
@@ -7,6 +8,7 @@ import respx
 from connect.merchant.license import (
     build_block_result,
     build_signal_result,
+    verify_and_record_event,
     verify_license_token,
 )
 from connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvalidReason, ValidLicenseToken
@@ -228,3 +230,67 @@ def test_build_block_result_sanitizes_header_value():
     assert "\r" not in www_auth
     assert "\n" not in www_auth
     assert '\\"' in www_auth
+
+
+async def test_verify_and_record_event_records_license_used_for_valid_token(make_token, jwks_response, monkeypatch):
+    token = make_token()
+    monkeypatch.setattr("connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
+
+    with respx.mock:
+        respx.get(JWKS_URL).respond(json=jwks_response)
+        route = respx.post(EVENTS_URL).respond(status_code=201, json={"ok": True})
+
+        result = await verify_and_record_event(
+            token=token,
+            url=REQUEST_URL,
+            user_agent="Browser/1.0",
+            supertab_base_url=SUPERTAB_BASE_URL,
+            debug=False,
+            api_key="sk_test_123",
+            request_headers={
+                "Accept": "text/html",
+                "X-Forwarded-For": "203.0.113.1",
+            },
+        )
+
+    assert isinstance(result, ValidLicenseToken)
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["event_name"] == "license_used"
+    assert payload["license_id"] == "lic_test_123"
+    assert payload["properties"] == {
+        "page_url": REQUEST_URL,
+        "user_agent": "Browser/1.0",
+        "sdk_user_agent": "sdk-test/1.2.3",
+        "verification_status": "valid",
+        "verification_reason": "success",
+        "h_accept": "text/html",
+        "h_x-forwarded-for": "203.0.113.1",
+    }
+
+
+async def test_verify_and_record_event_records_invalid_reason(make_token, monkeypatch):
+    token = make_token(audience="https://other-site.com/page")
+    monkeypatch.setattr("connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
+
+    with respx.mock:
+        route = respx.post(EVENTS_URL).respond(status_code=201, json={"ok": True})
+
+        result = await verify_and_record_event(
+            token=token,
+            url=REQUEST_URL,
+            user_agent="Browser/1.0",
+            supertab_base_url=SUPERTAB_BASE_URL,
+            debug=False,
+            api_key="sk_test_123",
+            request_headers={"Accept": "text/html"},
+        )
+
+    assert isinstance(result, InvalidLicenseToken)
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["event_name"] == LicenseTokenInvalidReason.INVALID_AUDIENCE.value
+    assert payload["properties"]["page_url"] == REQUEST_URL
+    assert payload["properties"]["user_agent"] == "Browser/1.0"
+    assert payload["properties"]["sdk_user_agent"] == "sdk-test/1.2.3"
+    assert payload["properties"]["verification_status"] == "invalid"
+    assert payload["properties"]["verification_reason"] == LicenseTokenInvalidReason.INVALID_AUDIENCE.value
+    assert payload["properties"]["h_accept"] == "text/html"

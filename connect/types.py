@@ -1,6 +1,6 @@
 """Core types for the Supertab Connect SDK."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
@@ -31,7 +31,7 @@ class HandlerAction(StrEnum):
     BLOCK = "block"
 
 
-BotDetector: TypeAlias = Callable[[Request], bool | Awaitable[bool]]
+BotDetector: TypeAlias = Callable[[Request], bool]
 
 
 @dataclass(frozen=True)
