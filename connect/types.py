@@ -1,8 +1,11 @@
 """Core types for the Supertab Connect SDK."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
+
+from httpx import Request
 
 
 class EnforcementMode(StrEnum):
@@ -26,6 +29,33 @@ class LicenseTokenInvalidReason(StrEnum):
 class HandlerAction(StrEnum):
     ALLOW = "allow"
     BLOCK = "block"
+
+
+BotDetector: TypeAlias = Callable[[Request], bool | Awaitable[bool]]
+
+
+@dataclass(frozen=True)
+class SupertabConnectConfig:
+    api_key: str
+    enforcement: EnforcementMode = EnforcementMode.STRICT
+    supertab_base_url: str | None = None
+    bot_detector: BotDetector | None = None
+    debug: bool = False
+
+
+class AllowHandlerResult(TypedDict):
+    action: Literal[HandlerAction.ALLOW]
+    headers: NotRequired[dict[str, str]]
+
+
+class BlockHandlerResult(TypedDict):
+    action: Literal[HandlerAction.BLOCK]
+    status: int
+    body: str
+    headers: dict[str, str]
+
+
+HandlerResult: TypeAlias = AllowHandlerResult | BlockHandlerResult
 
 
 @dataclass(frozen=True)

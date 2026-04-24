@@ -7,7 +7,7 @@ import pytest
 import respx
 
 from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.jwks import JWKS_CACHE_TTL_SECONDS, clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
+from connect.merchant.jwks import JWKS_CACHE_TTL_SECONDS, _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
 
 from tests.merchant.constants import JWKS_URL, SUPERTAB_BASE_URL
 
@@ -64,7 +64,7 @@ def test_find_key_by_kid_returns_matching_key():
     """Returns the key matching the given kid."""
     jwks = {"keys": [{"kid": "key-1", "kty": "EC"}, {"kid": "key-2", "kty": "EC"}]}
 
-    result = find_key_by_kid(jwks, "key-2")
+    result = _find_key_by_kid(jwks, "key-2")
 
     assert result == {"kid": "key-2", "kty": "EC"}
 
@@ -74,10 +74,10 @@ def test_find_key_by_kid_raises_on_missing_kid():
     jwks = {"keys": [{"kid": "key-1", "kty": "EC"}]}
 
     with pytest.raises(JwksKeyNotFoundError, match="no-such-key"):
-        find_key_by_kid(jwks, "no-such-key")
+        _find_key_by_kid(jwks, "no-such-key")
 
 
 def test_find_key_by_kid_raises_on_empty_keys():
     """Raises JwksKeyNotFoundError when the key set is empty."""
     with pytest.raises(JwksKeyNotFoundError):
-        find_key_by_kid({"keys": []}, "any-kid")
+        _find_key_by_kid({"keys": []}, "any-kid")

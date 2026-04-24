@@ -1,7 +1,7 @@
 """License token verification for the Supertab Connect SDK."""
 
 import re
-from typing import Any, cast
+from typing import cast
 from urllib.parse import urlparse
 
 import jwt
@@ -10,8 +10,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
 from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.jwks import clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
+from connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
 from connect.types import (
+    AllowHandlerResult,
+    BlockHandlerResult,
     HandlerAction,
     InvalidLicenseToken,
     LicenseTokenInvalidReason,
@@ -36,7 +38,7 @@ def _audience_matches(request_url: str, audience: str) -> bool:
     return request_url.startswith(normalized_aud + "/")
 
 
-def _generate_license_link(request_url: str) -> str:
+def generate_license_link(request_url: str) -> str:
     try:
         parsed = urlparse(request_url)
         if not parsed.scheme or not parsed.netloc:
@@ -181,7 +183,7 @@ async def verify_license_token(
             )
 
         try:
-            jwk_key = find_key_by_kid(jwks, header.get("kid"))
+            jwk_key = _find_key_by_kid(jwks, header.get("kid"))
             public_key = cast(EllipticCurvePublicKey, jwt.algorithms.ECAlgorithm.from_jwk(jwk_key))
             verified_payload = jwt.decode(
                 license_token,
@@ -227,11 +229,11 @@ def build_block_result(
     reason: LicenseTokenInvalidReason,
     error: str,
     request_url: str,
-) -> dict[str, Any]:
+) -> BlockHandlerResult:
     """Build a block response with appropriate status code and headers."""
     rsl_error, status = _reason_to_rsl_error(reason)
     error_description = _sanitize_header_value(error)
-    license_link = _generate_license_link(request_url)
+    license_link = generate_license_link(request_url)
 
     return {
         "action": HandlerAction.BLOCK,
@@ -245,9 +247,9 @@ def build_block_result(
     }
 
 
-def build_signal_result(request_url: str) -> dict[str, Any]:
+def build_signal_result(request_url: str) -> AllowHandlerResult:
     """Build a soft enforcement signal response with license link headers."""
-    license_link = _generate_license_link(request_url)
+    license_link = generate_license_link(request_url)
     return {
         "action": HandlerAction.ALLOW,
         "headers": {

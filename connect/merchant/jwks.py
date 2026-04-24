@@ -54,7 +54,7 @@ def clear_jwks_cache() -> None:
     _jwks_cache.clear()
 
 
-def find_key_by_kid(jwks: dict[str, Any], kid: str | None) -> dict[str, Any]:
+def _find_key_by_kid(jwks: dict[str, Any], kid: str | None) -> dict[str, Any]:
     """Find a key in the JWKS by key ID.
 
     Raises JwksKeyNotFoundError if no matching key is found.

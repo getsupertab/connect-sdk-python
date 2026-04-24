@@ -3,7 +3,7 @@
 import re
 
 
-def _score_path_pattern(pattern: str, path: str) -> int:
+def score_path_pattern(pattern: str, path: str) -> int:
     """Return a specificity score for a matching path pattern, or ``-1``."""
     anchored = pattern.endswith("$")
     normalized_pattern = pattern[:-1] if anchored else pattern
