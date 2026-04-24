@@ -1,6 +1,7 @@
 """License token verification for the Supertab Connect SDK."""
 
 import re
+from collections.abc import Mapping
 from typing import cast
 from urllib.parse import urlparse
 
@@ -8,8 +9,11 @@ import jwt
 import jwt.algorithms
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
+from connect._version import _get_sdk_user_agent
 from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
+from connect.merchant.events import record_event
+from connect.merchant.headers import to_event_properties
 from connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
 from connect.types import (
     AllowHandlerResult,
@@ -258,3 +262,41 @@ def build_signal_result(request_url: str) -> AllowHandlerResult:
             "X-RSL-Reason": "missing",
         },
     }
+
+
+async def verify_and_record_event(
+    *,
+    token: str,
+    url: str,
+    user_agent: str,
+    supertab_base_url: str,
+    debug: bool,
+    api_key: str,
+    request_headers: Mapping[str, str] | None = None,
+) -> LicenseTokenVerificationResult:
+    verification = await verify_license_token(
+        token,
+        request_url=url,
+        supertab_base_url=supertab_base_url,
+        debug=debug,
+    )
+
+    event_promise = record_event(
+        api_key=api_key,
+        base_url=supertab_base_url,
+        event_name="license_used" if isinstance(verification, ValidLicenseToken) else verification.reason,
+        properties={
+            "page_url": url,
+            "user_agent": user_agent,
+            "sdk_user_agent": _get_sdk_user_agent(),
+            "verification_status": "valid" if verification.valid else "invalid",
+            "verification_reason": "success" if isinstance(verification, ValidLicenseToken) else verification.reason,
+            **to_event_properties(request_headers or {}),
+        },
+        license_id=verification.license_id,
+        debug=debug,
+    )
+
+    await event_promise
+
+    return verification

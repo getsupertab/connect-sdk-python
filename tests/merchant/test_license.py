@@ -4,10 +4,16 @@ from datetime import timedelta
 
 import respx
 
-from connect.merchant.license import build_block_result, build_signal_result, verify_license_token
+from connect.merchant.license import (
+    build_block_result,
+    build_signal_result,
+    verify_license_token,
+)
 from connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvalidReason, ValidLicenseToken
 
 from tests.merchant.constants import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL
+
+EVENTS_URL = f"{SUPERTAB_BASE_URL}/events"
 
 
 async def test_verify_valid_token(make_token, jwks_response):
