@@ -72,12 +72,9 @@ class SupertabConnect:
     def get_base_url(cls) -> str:
         return cls._base_url
 
-    @classmethod
-    def _resolve_base_url(cls, override: str | None = None) -> str:
-        return override or cls._base_url
-
-    def _get_instance_base_url(self) -> str:
-        return self._resolve_base_url(self._base_url_override)
+    @property
+    def base_url(self) -> str:
+        return self._base_url_override or type(self)._base_url
 
     async def aclose(self) -> None:
         await aclose_events_http_client()
@@ -89,8 +86,9 @@ class SupertabConnect:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.aclose()
 
-    @staticmethod
+    @classmethod
     async def verify(
+        cls,
         *,
         token: str,
         resource_url: str,
@@ -100,7 +98,7 @@ class SupertabConnect:
         result = await verify_license_token(
             token,
             request_url=resource_url,
-            supertab_base_url=SupertabConnect._resolve_base_url(base_url),
+            supertab_base_url=base_url or cls._base_url,
             debug=debug,
         )
 
@@ -122,7 +120,7 @@ class SupertabConnect:
             token=token,
             url=resource_url,
             user_agent=user_agent,
-            supertab_base_url=self._get_instance_base_url(),
+            supertab_base_url=self.base_url,
             debug=self.debug if debug is None else debug,
             api_key=self.api_key,
             request_headers=request_headers,
@@ -157,7 +155,7 @@ class SupertabConnect:
                 token=token,
                 url=url,
                 user_agent=user_agent,
-                supertab_base_url=self._get_instance_base_url(),
+                supertab_base_url=self.base_url,
                 debug=self.debug,
                 api_key=self.api_key,
                 request_headers=dict(request.headers.items()),

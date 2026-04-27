@@ -58,6 +58,19 @@ def test_supertab_connect_reset_replaces_singleton():
     assert second.api_key == "sk_test_456"
 
 
+def test_base_url_property_uses_instance_override_or_class_default():
+    SupertabConnect.set_base_url("https://class-default.example")
+
+    default_client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
+    override_client = SupertabConnect(
+        SupertabConnectConfig(api_key="sk_test_456", supertab_base_url="https://instance-override.example"),
+        reset=True,
+    )
+
+    assert default_client.base_url == "https://class-default.example"
+    assert override_client.base_url == "https://instance-override.example"
+
+
 async def test_verify_uses_class_base_url(monkeypatch):
     captured: dict[str, Any] = {}
 
