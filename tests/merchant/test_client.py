@@ -5,9 +5,9 @@ from typing import Any, cast
 import httpx
 import pytest
 
-from connect import BlockHandlerResult
 from connect.merchant.client import SupertabConnect
 from connect.types import (
+    BlockHandlerResult,
     EnforcementMode,
     HandlerAction,
     InvalidLicenseToken,
