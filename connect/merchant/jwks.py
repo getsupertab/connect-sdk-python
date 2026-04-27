@@ -21,6 +21,13 @@ def _get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def aclose_http_client() -> None:
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+    _http_client = None
+
+
 async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str, Any]:
     """Fetch the platform JWKS from the Supertab well-known endpoint.
 

@@ -177,6 +177,47 @@ async def test_handle_request_allows_valid_token(monkeypatch):
     assert result == {"action": HandlerAction.ALLOW}
 
 
+async def test_handle_request_accepts_lowercase_scheme_and_whitespace(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    async def stub_verify_and_record_event(**kwargs):
+        captured.update(kwargs)
+        return ValidLicenseToken(license_id="lic_test_123", payload={})
+
+    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
+
+    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
+    result = await client.handle_request(
+        _make_request(
+            {
+                "Authorization": "license\t  signed.jwt",
+                "User-Agent": "Browser/1.0",
+            }
+        )
+    )
+
+    assert result == {"action": HandlerAction.ALLOW}
+    assert captured["token"] == "signed.jwt"
+
+
+async def test_supertab_connect_async_context_manager_closes_http_clients(monkeypatch):
+    called: list[str] = []
+
+    async def close_events():
+        called.append("events")
+
+    async def close_jwks():
+        called.append("jwks")
+
+    monkeypatch.setattr("connect.merchant.client.aclose_events_http_client", close_events)
+    monkeypatch.setattr("connect.merchant.client.aclose_jwks_http_client", close_jwks)
+
+    async with SupertabConnect(SupertabConnectConfig(api_key="sk_test_123")):
+        pass
+
+    assert called == ["events", "jwks"]
+
+
 async def test_handle_request_allows_missing_token_without_bot_detector():
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.STRICT))
 

@@ -5,12 +5,14 @@ from typing import ClassVar
 
 from httpx import Request
 
+from connect.merchant.events import aclose_http_client as aclose_events_http_client
 from connect.merchant.license import (
     build_block_result,
     build_signal_result,
     verify_and_record_event,
     verify_license_token,
 )
+from connect.merchant.jwks import aclose_http_client as aclose_jwks_http_client
 from connect.types import (
     BotDetector,
     EnforcementMode,
@@ -77,6 +79,16 @@ class SupertabConnect:
     def _get_instance_base_url(self) -> str:
         return self._resolve_base_url(self._base_url_override)
 
+    async def aclose(self) -> None:
+        await aclose_events_http_client()
+        await aclose_jwks_http_client()
+
+    async def __aenter__(self) -> "SupertabConnect":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.aclose()
+
     @staticmethod
     async def verify(
         *,
@@ -130,7 +142,10 @@ class SupertabConnect:
 
     async def handle_request(self, request: Request) -> HandlerResult:
         auth = request.headers.get("authorization", "")
-        token = auth[8:] if auth.startswith("License ") else None
+        token = None
+        auth_parts = auth.split(None, 1)
+        if len(auth_parts) == 2 and auth_parts[0].lower() == "license":
+            token = auth_parts[1]
         url = str(request.url)
         user_agent = request.headers.get("user-agent", "unknown")
 

@@ -6,7 +6,9 @@ import logging
 import httpx
 import respx
 
+import connect.merchant.events as events_module
 from connect.merchant.events import record_event
+from connect.merchant.events import aclose_http_client
 
 from tests.merchant.constants import SUPERTAB_BASE_URL
 
@@ -70,3 +72,20 @@ async def test_record_event_swallows_request_failures(caplog):
             )
 
     assert "Error recording event:" in caplog.text
+
+
+async def test_aclose_http_client_resets_client(monkeypatch):
+    called = {"aclose": 0}
+
+    class DummyClient:
+        is_closed = False
+
+        async def aclose(self):
+            called["aclose"] += 1
+
+    monkeypatch.setattr("connect.merchant.events._http_client", DummyClient())
+
+    await aclose_http_client()
+
+    assert called["aclose"] == 1
+    assert events_module._http_client is None

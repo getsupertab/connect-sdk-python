@@ -6,8 +6,15 @@ from unittest.mock import patch
 import pytest
 import respx
 
+import connect.merchant.jwks as jwks_module
 from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.jwks import JWKS_CACHE_TTL_SECONDS, _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
+from connect.merchant.jwks import (
+    JWKS_CACHE_TTL_SECONDS,
+    _find_key_by_kid,
+    aclose_http_client,
+    clear_jwks_cache,
+    fetch_platform_jwks,
+)
 
 from tests.merchant.constants import JWKS_URL, SUPERTAB_BASE_URL
 
@@ -81,3 +88,20 @@ def test_find_key_by_kid_raises_on_empty_keys():
     """Raises JwksKeyNotFoundError when the key set is empty."""
     with pytest.raises(JwksKeyNotFoundError):
         _find_key_by_kid({"keys": []}, "any-kid")
+
+
+async def test_aclose_http_client_resets_client(monkeypatch):
+    called = {"aclose": 0}
+
+    class DummyClient:
+        is_closed = False
+
+        async def aclose(self):
+            called["aclose"] += 1
+
+    monkeypatch.setattr("connect.merchant.jwks._http_client", DummyClient())
+
+    await aclose_http_client()
+
+    assert called["aclose"] == 1
+    assert jwks_module._http_client is None

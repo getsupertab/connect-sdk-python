@@ -281,7 +281,7 @@ async def verify_and_record_event(
         debug=debug,
     )
 
-    event_promise = record_event(
+    await record_event(
         api_key=api_key,
         base_url=supertab_base_url,
         event_name="license_used" if isinstance(verification, ValidLicenseToken) else verification.reason,
@@ -296,7 +296,5 @@ async def verify_and_record_event(
         license_id=verification.license_id,
         debug=debug,
     )
-
-    await event_promise
 
     return verification
