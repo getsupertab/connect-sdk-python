@@ -1,17 +1,23 @@
 """License token verification for the Supertab Connect SDK."""
 
 import re
-from typing import Any, cast
+from collections.abc import Mapping
+from typing import cast
 from urllib.parse import urlparse
 
 import jwt
 import jwt.algorithms
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
+from connect._version import _get_sdk_user_agent
 from connect.common import debug_log, error_log
 from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.jwks import clear_jwks_cache, fetch_platform_jwks, find_key_by_kid
+from connect.merchant.events import record_event
+from connect.merchant.headers import to_event_properties
+from connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
 from connect.types import (
+    AllowHandlerResult,
+    BlockHandlerResult,
     HandlerAction,
     InvalidLicenseToken,
     LicenseTokenInvalidReason,
@@ -36,7 +42,7 @@ def _audience_matches(request_url: str, audience: str) -> bool:
     return request_url.startswith(normalized_aud + "/")
 
 
-def _generate_license_link(request_url: str) -> str:
+def generate_license_link(request_url: str) -> str:
     try:
         parsed = urlparse(request_url)
         if not parsed.scheme or not parsed.netloc:
@@ -181,7 +187,7 @@ async def verify_license_token(
             )
 
         try:
-            jwk_key = find_key_by_kid(jwks, header.get("kid"))
+            jwk_key = _find_key_by_kid(jwks, header.get("kid"))
             public_key = cast(EllipticCurvePublicKey, jwt.algorithms.ECAlgorithm.from_jwk(jwk_key))
             verified_payload = jwt.decode(
                 license_token,
@@ -227,11 +233,11 @@ def build_block_result(
     reason: LicenseTokenInvalidReason,
     error: str,
     request_url: str,
-) -> dict[str, Any]:
+) -> BlockHandlerResult:
     """Build a block response with appropriate status code and headers."""
     rsl_error, status = _reason_to_rsl_error(reason)
     error_description = _sanitize_header_value(error)
-    license_link = _generate_license_link(request_url)
+    license_link = generate_license_link(request_url)
 
     return {
         "action": HandlerAction.BLOCK,
@@ -245,9 +251,9 @@ def build_block_result(
     }
 
 
-def build_signal_result(request_url: str) -> dict[str, Any]:
+def build_signal_result(request_url: str) -> AllowHandlerResult:
     """Build a soft enforcement signal response with license link headers."""
-    license_link = _generate_license_link(request_url)
+    license_link = generate_license_link(request_url)
     return {
         "action": HandlerAction.ALLOW,
         "headers": {
@@ -256,3 +262,39 @@ def build_signal_result(request_url: str) -> dict[str, Any]:
             "X-RSL-Reason": "missing",
         },
     }
+
+
+async def verify_and_record_event(
+    *,
+    token: str,
+    url: str,
+    user_agent: str,
+    supertab_base_url: str,
+    debug: bool,
+    api_key: str,
+    request_headers: Mapping[str, str] | None = None,
+) -> LicenseTokenVerificationResult:
+    verification = await verify_license_token(
+        token,
+        request_url=url,
+        supertab_base_url=supertab_base_url,
+        debug=debug,
+    )
+
+    await record_event(
+        api_key=api_key,
+        base_url=supertab_base_url,
+        event_name="license_used" if isinstance(verification, ValidLicenseToken) else verification.reason,
+        properties={
+            "page_url": url,
+            "user_agent": user_agent,
+            "sdk_user_agent": _get_sdk_user_agent(),
+            "verification_status": "valid" if verification.valid else "invalid",
+            "verification_reason": "success" if isinstance(verification, ValidLicenseToken) else verification.reason,
+            **to_event_properties(request_headers or {}),
+        },
+        license_id=verification.license_id,
+        debug=debug,
+    )
+
+    return verification

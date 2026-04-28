@@ -3,7 +3,7 @@
 import urllib.parse
 
 from connect.common import debug_log
-from connect.url_pattern import _score_path_pattern
+from connect.url_pattern import score_path_pattern
 from connect.customer.content_parser import _ContentBlock
 
 
@@ -48,7 +48,7 @@ def _find_best_matching_content(
             debug_log(debug, f"Exact match found: {block.url_pattern}")
             return block
 
-        specificity = _score_path_pattern(pattern_path, path)
+        specificity = score_path_pattern(pattern_path, path)
         if specificity > best_specificity:
             best_specificity = specificity
             best_match = block

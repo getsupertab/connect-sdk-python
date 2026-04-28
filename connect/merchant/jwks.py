@@ -21,6 +21,13 @@ def _get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def aclose_http_client() -> None:
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+    _http_client = None
+
+
 async def fetch_platform_jwks(base_url: str, *, debug: bool = False) -> dict[str, Any]:
     """Fetch the platform JWKS from the Supertab well-known endpoint.
 
@@ -54,7 +61,7 @@ def clear_jwks_cache() -> None:
     _jwks_cache.clear()
 
 
-def find_key_by_kid(jwks: dict[str, Any], kid: str | None) -> dict[str, Any]:
+def _find_key_by_kid(jwks: dict[str, Any], kid: str | None) -> dict[str, Any]:
     """Find a key in the JWKS by key ID.
 
     Raises JwksKeyNotFoundError if no matching key is found.

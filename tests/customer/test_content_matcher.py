@@ -5,7 +5,7 @@ from connect.customer.content_matcher import (
     _find_best_matching_content,
 )
 from connect.customer.content_parser import _parse_content_elements
-from connect.url_pattern import _score_path_pattern
+from connect.url_pattern import score_path_pattern
 
 from tests.customer.conftest import SAMPLE_XML
 
@@ -167,15 +167,15 @@ def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
 )
 def test_score_path_pattern_handles_all_cases(pattern: str, path: str, expected: int) -> None:
     """Pattern scoring returns expected specificity for each pattern/path pair."""
-    assert _score_path_pattern(pattern, path) == expected
+    assert score_path_pattern(pattern, path) == expected
 
 
 def test_score_path_pattern_prefers_more_literal_characters() -> None:
     """More literal characters in the pattern yield a higher score."""
     path = "/content/news/article"
 
-    broad = _score_path_pattern("/*", path)
-    mid = _score_path_pattern("/content/*", path)
-    specific = _score_path_pattern("/content/*/article", path)
+    broad = score_path_pattern("/*", path)
+    mid = score_path_pattern("/content/*", path)
+    specific = score_path_pattern("/content/*/article", path)
 
     assert broad < mid < specific
