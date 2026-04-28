@@ -1,6 +1,6 @@
 import pytest
 
-from connect.customer.token import _LICENSE_TOKEN_CACHE, _LICENSE_TOKEN_LOCKS
+from connect.customer.token import _LICENSE_TOKEN_CACHE, _LICENSE_TOKEN_LOCKS, _LICENSE_XML_CACHE
 
 SAMPLE_XML = """
 <rsl xmlns="https://rslstandard.org/rsl">
@@ -27,3 +27,4 @@ SAMPLE_XML = """
 def clear_token_cache() -> None:
     _LICENSE_TOKEN_CACHE.clear()
     _LICENSE_TOKEN_LOCKS.clear()
+    _LICENSE_XML_CACHE.clear()

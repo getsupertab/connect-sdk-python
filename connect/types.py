@@ -31,6 +31,15 @@ class HandlerAction(StrEnum):
     BLOCK = "block"
 
 
+class UsageType(StrEnum):
+    ALL = "all"
+    SEARCH = "search"
+    AI_ALL = "ai-all"
+    AI_TRAIN = "ai-train"
+    AI_INDEX = "ai-index"
+    AI_INPUT = "ai-input"
+
+
 BotDetector: TypeAlias = Callable[[Request], bool]
 
 

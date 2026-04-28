@@ -11,6 +11,7 @@ from connect.types import (
     HandlerResult,
     RSLVerificationResult,
     SupertabConnectConfig,
+    UsageType,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "SupertabConnect",
     "SupertabConnectError",
     "SupertabConnectConfig",
+    "UsageType",
     "default_bot_detector",
     "obtain_license_token",
     "verify_license_token",

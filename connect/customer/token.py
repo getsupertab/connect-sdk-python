@@ -6,6 +6,7 @@ import json
 import time
 import urllib.parse
 from dataclasses import dataclass
+from xml.etree import ElementTree
 from typing import Any
 from weakref import WeakKeyDictionary
 
@@ -17,20 +18,30 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from connect.common import debug_log, error_log
 from connect.exceptions import SupertabConnectError
 from connect.customer.content_matcher import _find_best_matching_content
+from connect.customer.content_parser import _ContentBlock
 from connect.customer.content_parser import _parse_content_elements
+from connect.types import UsageType
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
 _DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
-_LICENSE_TOKEN_CACHE: dict[tuple[str, str], "_CachedToken"] = {}
-_LICENSE_TOKEN_LOCKS: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[str, str], asyncio.Lock]] = (
+_LICENSE_TOKEN_CACHE: dict[tuple[str, str, str], "_CachedToken"] = {}
+_LICENSE_TOKEN_LOCKS: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[tuple[str, str, str], asyncio.Lock]] = (
     WeakKeyDictionary()
 )
+_LICENSE_XML_TTL_SECONDS = 15 * 60
+_LICENSE_XML_CACHE: dict[str, "_CachedLicenseXml"] = {}
 
 
 @dataclass(frozen=True)
 class _CachedToken:
     token: str
     exp: int
+
+
+@dataclass(frozen=True)
+class _CachedLicenseXml:
+    xml: str
+    fetched_at: int
 
 
 def _build_origin(resource_url: str) -> str:
@@ -40,7 +51,7 @@ def _build_origin(resource_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | None:
+def _get_cached_token(cache_key: tuple[str, str, str], debug: bool = False) -> str | None:
     cached = _LICENSE_TOKEN_CACHE.get(cache_key)
     if cached is None:
         return None
@@ -58,7 +69,7 @@ def _get_cached_token(cache_key: tuple[str, str], debug: bool = False) -> str | 
     return None
 
 
-def _get_cache_lock(cache_key: tuple[str, str]) -> asyncio.Lock:
+def _get_cache_lock(cache_key: tuple[str, str, str]) -> asyncio.Lock:
     loop = asyncio.get_running_loop()
     loop_locks = _LICENSE_TOKEN_LOCKS.get(loop)
     if loop_locks is None:
@@ -71,6 +82,15 @@ def _get_cache_lock(cache_key: tuple[str, str]) -> asyncio.Lock:
         loop_locks[cache_key] = lock
 
     return lock
+
+
+def _evict_expired_license_xml() -> None:
+    now = int(time.time())
+    expired_origins = [
+        origin for origin, entry in _LICENSE_XML_CACHE.items() if now - entry.fetched_at >= _LICENSE_XML_TTL_SECONDS
+    ]
+    for origin in expired_origins:
+        _LICENSE_XML_CACHE.pop(origin, None)
 
 
 def _create_async_client(**kwargs: Any) -> httpx.AsyncClient:
@@ -210,7 +230,22 @@ async def _fetch_license_xml(
     resource_url: str,
     debug: bool = False,
 ) -> str:
-    license_xml_url = f"{_build_origin(resource_url)}/license.xml"
+    origin = _build_origin(resource_url)
+    cached = _LICENSE_XML_CACHE.get(origin)
+    if cached is not None:
+        now = int(time.time())
+        age = now - cached.fetched_at
+        if age < _LICENSE_XML_TTL_SECONDS:
+            debug_log(
+                debug,
+                f"Using cached license.xml for origin {origin} (expires in {_LICENSE_XML_TTL_SECONDS - age}s)",
+            )
+            return cached.xml
+
+        debug_log(debug, f"Cached license.xml for origin {origin} expired, re-fetching")
+        _LICENSE_XML_CACHE.pop(origin, None)
+
+    license_xml_url = f"{origin}/license.xml"
 
     try:
         response = await client.get(license_xml_url)
@@ -230,7 +265,49 @@ async def _fetch_license_xml(
         raise SupertabConnectError(message) from error
 
     debug_log(debug, f"Fetched license.xml from {license_xml_url}")
+    _evict_expired_license_xml()
+    _LICENSE_XML_CACHE[origin] = _CachedLicenseXml(xml=xml, fetched_at=int(time.time()))
     return xml
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", maxsplit=1)[-1]
+
+
+def _license_permits_usage(license_xml: str, usage: UsageType | str) -> bool:
+    try:
+        root = ElementTree.fromstring(license_xml)
+    except ElementTree.ParseError:
+        return False
+
+    usage_value = str(usage)
+
+    for element in root.iter():
+        if _local_name(element.tag) == "prohibits" and element.attrib.get("type") == "usage":
+            prohibited_usages = " ".join(element.itertext()).split()
+            if UsageType.ALL in prohibited_usages or usage_value in prohibited_usages:
+                return False
+
+    for element in root.iter():
+        if _local_name(element.tag) == "permits" and element.attrib.get("type") == "usage":
+            permitted_usages = " ".join(element.itertext()).split()
+            if UsageType.ALL in permitted_usages or usage_value in permitted_usages:
+                return True
+
+    return False
+
+
+def _find_serverless_usage_content(
+    content_blocks: list[_ContentBlock],
+    resource_url: str,
+    usage: UsageType | str,
+    debug: bool = False,
+) -> _ContentBlock | None:
+    matching_usage_blocks = [
+        block for block in content_blocks if block.server is None and _license_permits_usage(block.license_xml, usage)
+    ]
+
+    return _find_best_matching_content(matching_usage_blocks, resource_url, debug)
 
 
 async def obtain_license_token(
@@ -238,42 +315,59 @@ async def obtain_license_token(
     client_id: str,
     client_secret: str,
     resource_url: str,
+    usage: UsageType | str | None = None,
     debug: bool = False,
-) -> str:
+) -> str | None:
     """Obtain a license token using the current client credentials flow.
 
     This is the supported customer flow. The SDK fetches ``license.xml`` for
     the requested resource, finds the best matching ``<content>`` block, and
-    exchanges the client credentials for a license token.
+    exchanges the client credentials for a license token. If ``usage`` is
+    provided and a matching serverless content block permits that usage, no
+    token is needed and ``None`` is returned.
     """
-    cache_key = (client_id, resource_url)
-    cached = _get_cached_token(cache_key, debug)
-    if cached is not None:
-        return cached
+    async with _create_async_client() as client:
+        xml = await _fetch_license_xml(client, resource_url, debug)
+        debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
+        content_blocks = _parse_content_elements(xml, debug)
 
-    lock = _get_cache_lock(cache_key)
-    async with lock:
+        if not content_blocks:
+            error_log(debug, "No valid <content> elements with <license> found in license.xml")
+            raise SupertabConnectError("No valid <content> elements with <license> found in license.xml")
+
+        if usage is not None:
+            serverless_usage_content = _find_serverless_usage_content(content_blocks, resource_url, usage, debug)
+            if serverless_usage_content is not None:
+                debug_log(
+                    debug,
+                    "Matched serverless content to usage and resource URL combination, skipping license token request.",
+                )
+                debug_log(debug, f"URL: {resource_url}, Usage: {usage}")
+                return None
+
+        token_content_blocks = [block for block in content_blocks if block.server]
+        matched_content = _find_best_matching_content(token_content_blocks, resource_url, debug)
+        if matched_content is None or matched_content.server is None:
+            patterns = ", ".join(block.url_pattern for block in token_content_blocks)
+            error_log(
+                debug,
+                f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
+            )
+            raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
+
+        debug_log(debug, f"Matched content block for resource URL: {resource_url}")
+        debug_log(debug, f"Using license XML: {matched_content.license_xml}")
+
+        cache_key = (client_id, matched_content.server, matched_content.url_pattern)
         cached = _get_cached_token(cache_key, debug)
         if cached is not None:
             return cached
 
-        async with _create_async_client() as client:
-            xml = await _fetch_license_xml(client, resource_url, debug)
-            debug_log(debug, f"Fetched license.xml ({len(xml)} chars)")
-            content_blocks = _parse_content_elements(xml, debug)
-
-            if not content_blocks:
-                error_log(debug, "No valid <content> elements with <license> found in license.xml")
-                raise SupertabConnectError("No valid <content> elements with <license> found in license.xml")
-
-            matched_content = _find_best_matching_content(content_blocks, resource_url, debug)
-            if matched_content is None:
-                patterns = ", ".join(block.url_pattern for block in content_blocks)
-                error_log(
-                    debug,
-                    f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
-                )
-                raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
+        lock = _get_cache_lock(cache_key)
+        async with lock:
+            cached = _get_cached_token(cache_key, debug)
+            if cached is not None:
+                return cached
 
             token_endpoint = matched_content.server.rstrip("/") + "/token"
             debug_log(debug, f"Requesting license token from {token_endpoint}")
@@ -295,22 +389,22 @@ async def obtain_license_token(
                 debug=debug,
             )
 
-        try:
-            claims = jwt.decode(
-                token,
-                options={
-                    "verify_signature": False,
-                    "verify_exp": False,
-                    "verify_aud": False,
-                    "verify_iss": False,
-                },
-                algorithms=["HS256", "RS256", "ES256", "PS256"],
-            )
-            exp = claims.get("exp")
-            if isinstance(exp, int):
-                _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
-        except (jwt.PyJWTError, ValueError, TypeError) as error:
-            debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
+            try:
+                claims = jwt.decode(
+                    token,
+                    options={
+                        "verify_signature": False,
+                        "verify_exp": False,
+                        "verify_aud": False,
+                        "verify_iss": False,
+                    },
+                    algorithms=["HS256", "RS256", "ES256", "PS256"],
+                )
+                exp = claims.get("exp")
+                if isinstance(exp, int):
+                    _LICENSE_TOKEN_CACHE[cache_key] = _CachedToken(token=token, exp=exp)
+            except (jwt.PyJWTError, ValueError, TypeError) as error:
+                debug_log(debug, f"Failed to decode token for caching, skipping cache: {error}")
 
     return token
 

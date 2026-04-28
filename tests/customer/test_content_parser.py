@@ -33,12 +33,6 @@ def test_parse_content_elements_parses_multiple_blocks() -> None:
           <license type="test"><link /></license>
         </content>
         """,
-        # Missing required server attribute on the <content> element.
-        """
-        <content url="http://example.com/*">
-          <license type="test"><link /></license>
-        </content>
-        """,
         # Reject whitespace-only attributes that are present but effectively empty.
         """
         <content url="   " server="http://example.com">
@@ -54,3 +48,21 @@ def test_parse_content_elements_parses_multiple_blocks() -> None:
 def test_parse_content_elements_skips_invalid_content(xml: str) -> None:
     """Invalid or incomplete content elements produce no blocks."""
     assert _parse_content_elements(xml) == []
+
+
+def test_parse_content_elements_keeps_serverless_content() -> None:
+    """Serverless content is valid for usage grants."""
+    xml = """
+    <rsl>
+      <content url="http://example.com/*">
+        <license type="test"><link /></license>
+      </content>
+    </rsl>
+    """
+
+    blocks = _parse_content_elements(xml)
+
+    assert len(blocks) == 1
+    assert blocks[0].url_pattern == "http://example.com/*"
+    assert blocks[0].server is None
+    assert blocks[0].license_xml == '<license type="test"><link /></license>'
