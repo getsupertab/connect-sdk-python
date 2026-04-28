@@ -37,8 +37,8 @@ _CHROMIUM_UA_SUBSTRINGS = (
 _IOS_WEBKIT_BROWSER_UA_SUBSTRINGS = ("crios/", "edgios/", "fxios/")
 
 
-def _user_agent_can_omit_sec_ch_ua(lower_case_user_agent: str) -> bool:
-    """Return whether this UA is allowed to omit the Sec-CH-UA header.
+def _browser_lacks_client_hints_support(lower_case_user_agent: str) -> bool:
+    """Return whether this UA is expected to omit the Sec-CH-UA header.
 
     Chromium-family browsers generally send Sec-CH-UA, but most browser
     user-agent strings still include Mozilla and Safari compatibility tokens.
@@ -62,17 +62,23 @@ def default_bot_detector(request: Request) -> bool:
     sec_ch_ua = request.headers.get("sec-ch-ua")
     accept_language = request.headers.get("accept-language")
 
+    # 1. Basic substring check from known list
     lower_case_user_agent = user_agent.lower()
     bot_ua_match = any(bot in lower_case_user_agent for bot in _KNOWN_BOT_UA_SUBSTRINGS)
 
+    # 2. Headless browser detection
     headless_indicators = "headless" in lower_case_user_agent or "puppeteer" in lower_case_user_agent or not sec_ch_ua
     is_browser_missing_sec_ch_ua = (
         "headless" not in lower_case_user_agent and "puppeteer" not in lower_case_user_agent and not sec_ch_ua
     )
+
+    # 3. Suspicious header gaps — many bots omit these
     missing_headers = not accept or not accept_language
 
-    if _user_agent_can_omit_sec_ch_ua(lower_case_user_agent):
+    # Safari and Mozilla special case: allow if Sec-CH-UA is missing but UA matches Safari/Firefox patterns
+    if _browser_lacks_client_hints_support(lower_case_user_agent):
         if headless_indicators and is_browser_missing_sec_ch_ua:
             return False
 
+    # Final decision: any strong indicator is sufficient
     return bot_ua_match or headless_indicators or missing_headers
