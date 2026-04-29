@@ -17,6 +17,10 @@ async def main() -> None:
         debug=True,
     )
 
+    assert isinstance(token, str), (
+        "Token was not generated. Check your credentials and whether you have a license to the resource URL"
+    )
+
     print(f"Generated license token: {token}")
 
     result = await verify_license_token(

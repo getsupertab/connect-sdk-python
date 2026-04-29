@@ -14,7 +14,7 @@ ElementTree.register_namespace("", _RSL_NAMESPACE)
 class _ContentBlock:
     url_pattern: str
     license_xml: str
-    server: str
+    server: str | None = None
 
 
 def _clean_attribute(value: str | None) -> str | None:
@@ -47,9 +47,9 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
         if license_el is None:
             license_el = content_el.find("license", namespaces=_NS)
 
-        license_xml = ElementTree.tostring(license_el, encoding="unicode") if license_el is not None else None
+        license_xml = ElementTree.tostring(license_el, encoding="unicode").strip() if license_el is not None else None
 
-        if url_pattern and server and license_xml:
+        if url_pattern and license_xml:
             content_blocks.append(
                 _ContentBlock(
                     url_pattern=url_pattern,
@@ -63,7 +63,6 @@ def _parse_content_elements(xml: str, debug: bool = False) -> list[_ContentBlock
             value
             for value in (
                 None if url_pattern else "url",
-                None if server else "server",
                 None if license_xml else "<license>",
             )
             if value is not None

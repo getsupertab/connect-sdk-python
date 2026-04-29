@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from connect.customer.token import _create_async_client, _generate_license_token, obtain_license_token
 from connect.exceptions import SupertabConnectError
+from connect.types import UsageType
 
 from tests.customer.conftest import SAMPLE_XML
 
@@ -98,6 +99,106 @@ def test_create_async_client_uses_safe_defaults() -> None:
     asyncio.run(run())
 
 
+def test_obtain_license_token_fetches_license_xml_once_per_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Caches license.xml by origin while still fetching tokens per matched pattern."""
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    origin = "http://cachetest.example"
+    token_endpoint = "http://token-server.com/token"
+    calls = {"license_xml": 0, "token": 0}
+    xml = f"""
+    <rsl>
+      <content url="{origin}/articles/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+      <content url="{origin}/news/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            calls["license_xml"] += 1
+            return httpx.Response(200, text=xml, request=request)
+
+        if str(request.url) == token_endpoint:
+            calls["token"] += 1
+            return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+        )
+    )
+    asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/news/bar",
+        )
+    )
+
+    assert calls == {"license_xml": 1, "token": 2}
+
+
+def test_obtain_license_token_reuses_token_for_same_matched_pattern(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Caches license tokens by client, token server, and matched URL pattern."""
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    origin = "http://pattern-cache.example"
+    calls = {"license_xml": 0, "token": 0}
+    xml = f"""
+    <rsl>
+      <content url="{origin}/articles/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            calls["license_xml"] += 1
+            return httpx.Response(200, text=xml, request=request)
+
+        if str(request.url) == "http://token-server.com/token":
+            calls["token"] += 1
+            return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    first = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+        )
+    )
+    second = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/bar",
+        )
+    )
+
+    assert first == access_token
+    assert second == access_token
+    assert calls == {"license_xml": 1, "token": 1}
+
+
 def test_obtain_license_token_follows_redirects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -152,6 +253,184 @@ def test_obtain_license_token_follows_redirects(
         "token_redirect": 1,
         "token_final": 1,
     }
+
+
+def test_obtain_license_token_returns_none_for_matching_serverless_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Skips token exchange when serverless content permits the requested usage."""
+    origin = "http://search-serverless-match.example"
+    xml = """
+    <rsl>
+      <content url="/articles/*">
+        <license type="test">
+          <permits type="usage">search</permits>
+        </license>
+      </content>
+      <content url="/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+    calls = {"license_xml": 0, "token": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            calls["license_xml"] += 1
+            return httpx.Response(200, text=xml, request=request)
+
+        if str(request.url) == "http://token-server.com/token":
+            calls["token"] += 1
+            return httpx.Response(200, json={"access_token": "unused"}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+            usage=UsageType.SEARCH,
+        )
+    )
+
+    assert token is None
+    assert calls == {"license_xml": 1, "token": 0}
+
+
+def test_obtain_license_token_requests_token_when_serverless_usage_does_not_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Falls back to token exchange if the serverless usage grant matches a different resource."""
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    origin = "http://search-serverless-miss.example"
+    xml = """
+    <rsl>
+      <content url="/news/*">
+        <license type="test">
+          <permits type="usage">search</permits>
+        </license>
+      </content>
+      <content url="/articles/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+    calls = {"license_xml": 0, "token": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            calls["license_xml"] += 1
+            return httpx.Response(200, text=xml, request=request)
+
+        if str(request.url) == "http://token-server.com/token":
+            calls["token"] += 1
+            return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+            usage=UsageType.SEARCH,
+        )
+    )
+
+    assert token == access_token
+    assert calls == {"license_xml": 1, "token": 1}
+
+
+def test_obtain_license_token_requests_token_when_usage_is_prohibited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A matching prohibit entry wins over permits and forces token exchange."""
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    origin = "http://usage-prohibited.example"
+    xml = """
+    <rsl>
+      <content url="/articles/*">
+        <license type="test">
+          <permits type="usage">ai-train search</permits>
+          <prohibits type="usage">ai-train</prohibits>
+        </license>
+      </content>
+      <content url="/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+    calls = {"license_xml": 0, "token": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            calls["license_xml"] += 1
+            return httpx.Response(200, text=xml, request=request)
+
+        if str(request.url) == "http://token-server.com/token":
+            calls["token"] += 1
+            return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+            usage=UsageType.AI_TRAIN,
+        )
+    )
+
+    assert token == access_token
+    assert calls == {"license_xml": 1, "token": 1}
+
+
+def test_obtain_license_token_accepts_all_usage_grant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The all usage grant permits any specific usage type."""
+    origin = "http://usage-all.example"
+    xml = """
+    <rsl>
+      <content url="/articles/*">
+        <license type="test">
+          <permits type="usage">all</permits>
+        </license>
+      </content>
+      <content url="/*" server="http://token-server.com">
+        <license type="test"><link rel="self" /></license>
+      </content>
+    </rsl>
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{origin}/license.xml":
+            return httpx.Response(200, text=xml, request=request)
+
+        raise AssertionError(f"Unexpected URL: {request.url!s}")
+
+    _install_mock_transport(monkeypatch, handler)
+
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=f"{origin}/articles/foo",
+            usage=UsageType.AI_INPUT,
+        )
+    )
+
+    assert token is None
 
 
 @pytest.mark.parametrize(
