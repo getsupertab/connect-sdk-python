@@ -1,11 +1,11 @@
 import pytest
 
-from connect.customer.content_matcher import (
+from supertab_connect.customer.content_matcher import (
     _ContentBlock,
     _find_best_matching_content,
 )
-from connect.customer.content_parser import _parse_content_elements
-from connect.url_pattern import score_path_pattern
+from supertab_connect.customer.content_parser import _parse_content_elements
+from supertab_connect.url_pattern import score_path_pattern
 
 from tests.customer.conftest import SAMPLE_XML
 

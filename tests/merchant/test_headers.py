@@ -1,6 +1,6 @@
 """Tests for merchant event header mapping."""
 
-from connect.merchant.headers import to_event_properties
+from supertab_connect.merchant.headers import to_event_properties
 
 
 def test_to_event_properties_lowercases_keys_and_prefixes_them():

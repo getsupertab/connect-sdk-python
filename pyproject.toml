@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "supertab-connect-sdk"
-version = "0.0.1"
+version = "0.1.0"
 authors = [
   { name = "Supertab", email = "hello@supertab.co" },
 ]
@@ -12,11 +12,14 @@ description = "Supertab Connect SDK"
 readme = "README.md"
 requires-python = ">=3.12"
 classifiers = [
-  "License :: OSI Approved :: MIT License",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
 ]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
@@ -28,11 +31,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "build>=1.4.2",
+  "hatchling>=1.26",
   "prek>=0.3.8",
   "pytest>=8,<9",
   "pytest-asyncio>=0.24",
   "respx>=0.22",
   "ruff>=0.15.7",
+  "twine>=6",
   "ty>=0.0.25",
 ]
 
@@ -40,6 +45,7 @@ dev = [
 Homepage = "https://www.supertab.co/supertab-connect"
 Repository = "https://github.com/getsupertab/connect-sdk-python"
 Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
+Documentation = "https://supertab-connect.mintlify.app/reference/sdk/python"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -48,4 +54,20 @@ asyncio_mode = "auto"
 line-length = 119
 
 [tool.hatch.build.targets.wheel]
-packages = ["connect"]
+packages = ["supertab_connect"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/.idea",
+  "/.pytest_cache",
+  "/.ruff_cache",
+  "/.uv-cache",
+  "/.venv",
+  "/build",
+  "/dist",
+  "/uv.lock",
+  "/prek.toml",
+  "/DEVELOPMENT.md",
+]
+

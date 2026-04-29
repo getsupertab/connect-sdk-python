@@ -5,15 +5,15 @@ from typing import ClassVar
 
 from httpx import Request
 
-from connect.merchant.events import aclose_http_client as aclose_events_http_client
-from connect.merchant.license import (
+from supertab_connect.merchant.events import aclose_http_client as aclose_events_http_client
+from supertab_connect.merchant.license import (
     build_block_result,
     build_signal_result,
     verify_and_record_event,
     verify_license_token,
 )
-from connect.merchant.jwks import aclose_http_client as aclose_jwks_http_client
-from connect.types import (
+from supertab_connect.merchant.jwks import aclose_http_client as aclose_jwks_http_client
+from supertab_connect.types import (
     BotDetector,
     EnforcementMode,
     HandlerAction,

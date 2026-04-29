@@ -46,7 +46,7 @@ BotDetector: TypeAlias = Callable[[Request], bool]
 @dataclass(frozen=True)
 class SupertabConnectConfig:
     api_key: str
-    enforcement: EnforcementMode = EnforcementMode.STRICT
+    enforcement: EnforcementMode = EnforcementMode.SOFT
     supertab_base_url: str | None = None
     bot_detector: BotDetector | None = None
     debug: bool = False

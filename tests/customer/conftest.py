@@ -1,6 +1,6 @@
 import pytest
 
-from connect.customer.token import _LICENSE_TOKEN_CACHE, _LICENSE_TOKEN_LOCKS, _LICENSE_XML_CACHE
+from supertab_connect.customer.token import _LICENSE_TOKEN_CACHE, _LICENSE_TOKEN_LOCKS, _LICENSE_XML_CACHE
 
 SAMPLE_XML = """
 <rsl xmlns="https://rslstandard.org/rsl">

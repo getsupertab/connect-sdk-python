@@ -9,13 +9,13 @@ import jwt
 import jwt.algorithms
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
-from connect._version import _get_sdk_user_agent
-from connect.common import debug_log, error_log
-from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.events import record_event
-from connect.merchant.headers import to_event_properties
-from connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
-from connect.types import (
+from supertab_connect._version import _get_sdk_user_agent
+from supertab_connect.common import debug_log, error_log
+from supertab_connect.exceptions import JwksKeyNotFoundError
+from supertab_connect.merchant.events import record_event
+from supertab_connect.merchant.headers import to_event_properties
+from supertab_connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
+from supertab_connect.types import (
     AllowHandlerResult,
     BlockHandlerResult,
     HandlerAction,

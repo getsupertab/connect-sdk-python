@@ -10,9 +10,9 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from connect.customer.token import _create_async_client, _generate_license_token, obtain_license_token
-from connect.exceptions import SupertabConnectError
-from connect.types import UsageType
+from supertab_connect.customer.token import _create_async_client, _generate_license_token, obtain_license_token
+from supertab_connect.exceptions import SupertabConnectError
+from supertab_connect.types import UsageType
 
 from tests.customer.conftest import SAMPLE_XML
 
@@ -29,7 +29,7 @@ def _install_mock_transport(
         return httpx.AsyncClient(transport=httpx.MockTransport(handler), **kwargs)
 
     monkeypatch.setattr(
-        "connect.customer.token._create_async_client",
+        "supertab_connect.customer.token._create_async_client",
         create_mock_client,
     )
 

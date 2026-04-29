@@ -4,8 +4,8 @@ from typing import Any
 
 import httpx
 
-from connect._version import _get_sdk_user_agent
-from connect.common import debug_log, error_log
+from supertab_connect._version import _get_sdk_user_agent
+from supertab_connect.common import debug_log, error_log
 
 _http_client: httpx.AsyncClient | None = None
 

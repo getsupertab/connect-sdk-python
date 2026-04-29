@@ -5,13 +5,13 @@ from datetime import timedelta
 
 import respx
 
-from connect.merchant.license import (
+from supertab_connect.merchant.license import (
     build_block_result,
     build_signal_result,
     verify_and_record_event,
     verify_license_token,
 )
-from connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvalidReason, ValidLicenseToken
+from supertab_connect.types import HandlerAction, InvalidLicenseToken, LicenseTokenInvalidReason, ValidLicenseToken
 
 from tests.merchant.constants import JWKS_URL, REQUEST_URL, SUPERTAB_BASE_URL
 
@@ -234,7 +234,7 @@ def test_build_block_result_sanitizes_header_value():
 
 async def test_verify_and_record_event_records_license_used_for_valid_token(make_token, jwks_response, monkeypatch):
     token = make_token()
-    monkeypatch.setattr("connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
+    monkeypatch.setattr("supertab_connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
 
     with respx.mock:
         respx.get(JWKS_URL).respond(json=jwks_response)
@@ -270,7 +270,7 @@ async def test_verify_and_record_event_records_license_used_for_valid_token(make
 
 async def test_verify_and_record_event_records_invalid_reason(make_token, monkeypatch):
     token = make_token(audience="https://other-site.com/page")
-    monkeypatch.setattr("connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
+    monkeypatch.setattr("supertab_connect.merchant.license._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
 
     with respx.mock:
         route = respx.post(EVENTS_URL).respond(status_code=201, json={"ok": True})

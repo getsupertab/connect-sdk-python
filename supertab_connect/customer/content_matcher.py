@@ -2,9 +2,9 @@
 
 import urllib.parse
 
-from connect.common import debug_log
-from connect.url_pattern import score_path_pattern
-from connect.customer.content_parser import _ContentBlock
+from supertab_connect.common import debug_log
+from supertab_connect.url_pattern import score_path_pattern
+from supertab_connect.customer.content_parser import _ContentBlock
 
 
 def _find_best_matching_content(

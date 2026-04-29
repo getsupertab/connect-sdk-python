@@ -6,9 +6,9 @@ from unittest.mock import patch
 import pytest
 import respx
 
-import connect.merchant.jwks as jwks_module
-from connect.exceptions import JwksKeyNotFoundError
-from connect.merchant.jwks import (
+import supertab_connect.merchant.jwks as jwks_module
+from supertab_connect.exceptions import JwksKeyNotFoundError
+from supertab_connect.merchant.jwks import (
     JWKS_CACHE_TTL_SECONDS,
     _find_key_by_kid,
     aclose_http_client,
@@ -49,7 +49,9 @@ async def test_fetch_platform_jwks_cache_expires(jwks_response):
         await fetch_platform_jwks(SUPERTAB_BASE_URL)
         assert route.call_count == 1
 
-        with patch("connect.merchant.jwks.time.monotonic", return_value=time.monotonic() + JWKS_CACHE_TTL_SECONDS + 1):
+        with patch(
+            "supertab_connect.merchant.jwks.time.monotonic", return_value=time.monotonic() + JWKS_CACHE_TTL_SECONDS + 1
+        ):
             await fetch_platform_jwks(SUPERTAB_BASE_URL)
 
         assert route.call_count == 2
@@ -99,7 +101,7 @@ async def test_aclose_http_client_resets_client(monkeypatch):
         async def aclose(self):
             called["aclose"] += 1
 
-    monkeypatch.setattr("connect.merchant.jwks._http_client", DummyClient())
+    monkeypatch.setattr("supertab_connect.merchant.jwks._http_client", DummyClient())
 
     await aclose_http_client()
 
