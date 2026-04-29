@@ -15,12 +15,12 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from connect.common import debug_log, error_log
-from connect.exceptions import SupertabConnectError
-from connect.customer.content_matcher import _find_best_matching_content
-from connect.customer.content_parser import _ContentBlock
-from connect.customer.content_parser import _parse_content_elements
-from connect.types import UsageType
+from supertab_connect.common import debug_log, error_log
+from supertab_connect.exceptions import SupertabConnectError
+from supertab_connect.customer.content_matcher import _find_best_matching_content
+from supertab_connect.customer.content_parser import _ContentBlock
+from supertab_connect.customer.content_parser import _parse_content_elements
+from supertab_connect.types import UsageType
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
 _DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0

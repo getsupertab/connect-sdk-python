@@ -2,7 +2,7 @@
 
 import httpx
 
-from connect.merchant.bots import default_bot_detector
+from supertab_connect.merchant.bots import default_bot_detector
 
 from tests.merchant.constants import REQUEST_URL
 

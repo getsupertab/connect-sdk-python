@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from xml.etree import ElementTree
 
-from connect.common import debug_log
+from supertab_connect.common import debug_log
 
 _RSL_NAMESPACE = "https://rslstandard.org/rsl"
 _NS = {"rsl": _RSL_NAMESPACE}

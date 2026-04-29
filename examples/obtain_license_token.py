@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from connect import obtain_license_token
+from supertab_connect import obtain_license_token
 
 logging.basicConfig(level=logging.DEBUG)
 

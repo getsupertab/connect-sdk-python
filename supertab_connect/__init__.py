@@ -1,11 +1,11 @@
 """Supertab Connect SDK."""
 
-from connect.customer.token import obtain_license_token
-from connect.exceptions import SupertabConnectError
-from connect.merchant.bots import default_bot_detector
-from connect.merchant.client import SupertabConnect
-from connect.merchant.license import verify_license_token
-from connect.types import (
+from supertab_connect.customer.token import obtain_license_token
+from supertab_connect.exceptions import SupertabConnectError
+from supertab_connect.merchant.bots import default_bot_detector
+from supertab_connect.merchant.client import SupertabConnect
+from supertab_connect.merchant.license import verify_license_token
+from supertab_connect.types import (
     EnforcementMode,
     HandlerAction,
     HandlerResult,

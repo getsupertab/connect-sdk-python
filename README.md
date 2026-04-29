@@ -4,9 +4,9 @@ Python SDK for Supertab Connect.
 
 ## Usage
 
-Check the `examples` folder to get the idea of how to use the provided functionality.
+See the [Supertab Connect Docs](https://supertab-connect.mintlify.app/reference/sdk/python) for full SDK reference.
 
-Dedicated SDK docs portal is coming soon.
+Check our scripts from the `examples` folder to get the idea of how to use the provided functionality.
 
 ## Development
 
@@ -18,7 +18,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned 
 
 ```text
 .
-├── connect
+├── supertab_connect
 │   ├── customer
 │   └── merchant
 ├── examples

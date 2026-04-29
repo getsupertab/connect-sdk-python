@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from connect import EnforcementMode, SupertabConnect, SupertabConnectConfig
+from supertab_connect import EnforcementMode, SupertabConnect, SupertabConnectConfig
 
 logging.basicConfig(level=logging.DEBUG)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from connect.customer.content_parser import _parse_content_elements
+from supertab_connect.customer.content_parser import _parse_content_elements
 
 from tests.customer.conftest import SAMPLE_XML
 

@@ -5,8 +5,8 @@ from typing import Any
 
 import httpx
 
-from connect.common import debug_log, error_log
-from connect.exceptions import JwksKeyNotFoundError
+from supertab_connect.common import debug_log, error_log
+from supertab_connect.exceptions import JwksKeyNotFoundError
 
 JWKS_CACHE_TTL_SECONDS = 48 * 3600  # 48 hours
 

@@ -5,7 +5,7 @@ import logging
 
 import httpx
 
-from connect import EnforcementMode, HandlerAction, SupertabConnect, SupertabConnectConfig
+from supertab_connect import EnforcementMode, HandlerAction, SupertabConnect, SupertabConnectConfig
 
 logging.basicConfig(level=logging.DEBUG)
 

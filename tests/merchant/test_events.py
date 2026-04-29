@@ -6,9 +6,9 @@ import logging
 import httpx
 import respx
 
-import connect.merchant.events as events_module
-from connect.merchant.events import record_event
-from connect.merchant.events import aclose_http_client
+import supertab_connect.merchant.events as events_module
+from supertab_connect.merchant.events import record_event
+from supertab_connect.merchant.events import aclose_http_client
 
 from tests.merchant.constants import SUPERTAB_BASE_URL
 
@@ -16,7 +16,7 @@ EVENTS_URL = f"{SUPERTAB_BASE_URL}/events"
 
 
 async def test_record_event_posts_expected_payload(monkeypatch):
-    monkeypatch.setattr("connect.merchant.events._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
+    monkeypatch.setattr("supertab_connect.merchant.events._get_sdk_user_agent", lambda: "sdk-test/1.2.3")
 
     with respx.mock:
         route = respx.post(EVENTS_URL).respond(status_code=201, json={"ok": True})
@@ -44,7 +44,7 @@ async def test_record_event_logs_non_2xx_responses(caplog):
     with respx.mock:
         respx.post(EVENTS_URL).respond(status_code=500)
 
-        with caplog.at_level(logging.DEBUG, logger="connect.common"):
+        with caplog.at_level(logging.DEBUG, logger="supertab_connect.common"):
             await record_event(
                 api_key="sk_test_123",
                 base_url=SUPERTAB_BASE_URL,
@@ -62,7 +62,7 @@ async def test_record_event_swallows_request_failures(caplog):
     with respx.mock:
         respx.post(EVENTS_URL).mock(side_effect=httpx.ConnectError("boom", request=request))
 
-        with caplog.at_level(logging.ERROR, logger="connect.common"):
+        with caplog.at_level(logging.ERROR, logger="supertab_connect.common"):
             await record_event(
                 api_key="sk_test_123",
                 base_url=SUPERTAB_BASE_URL,
@@ -83,7 +83,7 @@ async def test_aclose_http_client_resets_client(monkeypatch):
         async def aclose(self):
             called["aclose"] += 1
 
-    monkeypatch.setattr("connect.merchant.events._http_client", DummyClient())
+    monkeypatch.setattr("supertab_connect.merchant.events._http_client", DummyClient())
 
     await aclose_http_client()
 

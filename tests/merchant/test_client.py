@@ -5,8 +5,8 @@ from typing import Any, cast
 import httpx
 import pytest
 
-from connect.merchant.client import SupertabConnect
-from connect.types import (
+from supertab_connect.merchant.client import SupertabConnect
+from supertab_connect.types import (
     BlockHandlerResult,
     EnforcementMode,
     HandlerAction,
@@ -85,7 +85,7 @@ async def test_verify_uses_class_base_url(monkeypatch):
         )
         return ValidLicenseToken(license_id="lic_test_123", payload={})
 
-    monkeypatch.setattr("connect.merchant.client.verify_license_token", stub_verify_license_token)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_license_token", stub_verify_license_token)
     SupertabConnect.set_base_url("https://override.example")
 
     result = await SupertabConnect.verify(token="signed.jwt", resource_url=REQUEST_URL, debug=True)
@@ -107,7 +107,7 @@ async def test_verify_and_record_uses_instance_base_url_override(monkeypatch):
         captured.update(kwargs)
         return ValidLicenseToken(license_id="lic_test_123", payload={})
 
-    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
 
     client = SupertabConnect(
         SupertabConnectConfig(
@@ -133,7 +133,7 @@ async def test_handle_request_allows_token_when_enforcement_disabled(monkeypatch
     async def fail_verify_and_record_event(**kwargs):
         raise AssertionError(f"verify_and_record_event should not be called: {kwargs}")
 
-    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", fail_verify_and_record_event)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", fail_verify_and_record_event)
 
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.DISABLED))
     result = await client.handle_request(_make_request({"Authorization": "License signed.jwt"}))
@@ -152,7 +152,7 @@ async def test_handle_request_blocks_invalid_token(monkeypatch):
             license_id="lic_test_123",
         )
 
-    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
 
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.STRICT))
     result = await client.handle_request(
@@ -175,7 +175,7 @@ async def test_handle_request_allows_valid_token(monkeypatch):
     async def stub_verify_and_record_event(**kwargs):
         return ValidLicenseToken(license_id="lic_test_123", payload={})
 
-    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
 
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
     result = await client.handle_request(
@@ -197,7 +197,7 @@ async def test_handle_request_accepts_lowercase_scheme_and_whitespace(monkeypatc
         captured.update(kwargs)
         return ValidLicenseToken(license_id="lic_test_123", payload={})
 
-    monkeypatch.setattr("connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
+    monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
 
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
     result = await client.handle_request(
@@ -222,8 +222,8 @@ async def test_supertab_connect_async_context_manager_closes_http_clients(monkey
     async def close_jwks():
         called.append("jwks")
 
-    monkeypatch.setattr("connect.merchant.client.aclose_events_http_client", close_events)
-    monkeypatch.setattr("connect.merchant.client.aclose_jwks_http_client", close_jwks)
+    monkeypatch.setattr("supertab_connect.merchant.client.aclose_events_http_client", close_events)
+    monkeypatch.setattr("supertab_connect.merchant.client.aclose_jwks_http_client", close_jwks)
 
     async with SupertabConnect(SupertabConnectConfig(api_key="sk_test_123")):
         pass
