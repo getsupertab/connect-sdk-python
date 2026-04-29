@@ -281,20 +281,27 @@ def _license_permits_usage(license_xml: str, usage: UsageType | str) -> bool:
         return False
 
     usage_value = str(usage)
+    is_permitted = False
 
     for element in root.iter():
-        if _local_name(element.tag) == "prohibits" and element.attrib.get("type") == "usage":
-            prohibited_usages = " ".join(element.itertext()).split()
-            if UsageType.ALL in prohibited_usages or usage_value in prohibited_usages:
-                return False
+        if element.attrib.get("type") != "usage":
+            continue
 
-    for element in root.iter():
-        if _local_name(element.tag) == "permits" and element.attrib.get("type") == "usage":
-            permitted_usages = " ".join(element.itertext()).split()
-            if UsageType.ALL in permitted_usages or usage_value in permitted_usages:
-                return True
+        tag = _local_name(element.tag)
+        if tag not in {"prohibits", "permits"}:
+            continue
 
-    return False
+        usages = " ".join(element.itertext()).split()
+
+        if UsageType.ALL not in usages and usage_value not in usages:
+            continue
+
+        if tag == "prohibits":
+            return False
+
+        is_permitted = True
+
+    return is_permitted
 
 
 def _find_serverless_usage_content(
