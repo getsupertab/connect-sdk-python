@@ -2,6 +2,12 @@
 
 Python SDK for [Supertab Connect](https://www.supertab.co/supertab-connect).
 
+[![PyPI](https://img.shields.io/pypi/v/supertab-connect-sdk.svg)](https://pypi.org/project/supertab-connect-sdk/)
+[![License](https://img.shields.io/pypi/l/supertab-connect-sdk.svg)](https://github.com/getsupertab/connect-sdk-python/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/getsupertab/connect-sdk-python/ci.yml)](https://github.com/getsupertab/connect-sdk-python/actions/workflows/ci.yml)
+[![Python Versions](https://img.shields.io/pypi/pyversions/supertab-connect-sdk.svg)](https://pypi.org/project/supertab-connect-sdk/)
+[![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1.svg)](https://docs.astral.sh/ruff/)
+
 Use this package to obtain Supertab license tokens on the customer side and verify
 or enforce them on the merchant side.
 
