@@ -105,7 +105,7 @@ checkers.
 
 ## Documentation
 
-See the [Supertab Connect Python SDK docs](https://supertab-connect.mintlify.app/reference/sdk/python)
+See the [Supertab Connect Python SDK docs](https://connect-docs.supertab.co/reference/sdk/python)
 for the full API reference.
 
 ## Development
@@ -116,7 +116,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, Git hooks, and CI-aligned 
 
 ## Links
 
-- [Documentation](https://supertab-connect.mintlify.app/reference/sdk/python)
+- [Documentation](https://connect-docs.supertab.co/reference/sdk/python)
 - [Repository](https://github.com/getsupertab/connect-sdk-python)
 - [Issues](https://github.com/getsupertab/connect-sdk-python/issues)
 - [License](LICENSE)

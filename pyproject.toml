@@ -47,7 +47,7 @@ dev = [
 Homepage = "https://www.supertab.co/supertab-connect"
 Repository = "https://github.com/getsupertab/connect-sdk-python"
 Issues = "https://github.com/getsupertab/connect-sdk-python/issues"
-Documentation = "https://supertab-connect.mintlify.app/reference/sdk/python"
+Documentation = "https://connect-docs.supertab.co/reference/sdk/python"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
