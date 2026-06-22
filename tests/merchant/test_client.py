@@ -33,13 +33,13 @@ def _reset_supertab_connect_singleton():
 
 
 def test_supertab_connect_returns_existing_instance_for_same_api_key():
-    first = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.STRICT))
+    first = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.ENFORCE))
     second = SupertabConnect(
-        SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.SOFT, debug=True)
+        SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.OBSERVE, debug=True)
     )
 
     assert first is second
-    assert second.enforcement is EnforcementMode.STRICT
+    assert second.enforcement is EnforcementMode.ENFORCE
     assert second.debug is False
 
 
@@ -154,7 +154,7 @@ async def test_handle_request_blocks_invalid_token(monkeypatch):
 
     monkeypatch.setattr("supertab_connect.merchant.client.verify_and_record_event", stub_verify_and_record_event)
 
-    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.STRICT))
+    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.ENFORCE))
     result = await client.handle_request(
         _make_request(
             {
@@ -232,7 +232,7 @@ async def test_supertab_connect_async_context_manager_closes_http_clients(monkey
 
 
 async def test_handle_request_allows_missing_token_without_bot_detector():
-    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.STRICT))
+    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123", enforcement=EnforcementMode.ENFORCE))
 
     result = await client.handle_request(_make_request({"User-Agent": "Browser/1.0"}))
 
@@ -243,7 +243,7 @@ async def test_handle_request_allows_missing_token_for_non_bot():
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="sk_test_123",
-            enforcement=EnforcementMode.STRICT,
+            enforcement=EnforcementMode.ENFORCE,
             bot_detector=lambda request: False,
         )
     )
@@ -257,7 +257,7 @@ async def test_handle_request_blocks_bot_in_strict_mode():
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="sk_test_123",
-            enforcement=EnforcementMode.STRICT,
+            enforcement=EnforcementMode.ENFORCE,
             bot_detector=lambda request: True,
         )
     )
@@ -273,7 +273,7 @@ async def test_handle_request_signals_bot_in_soft_mode():
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="sk_test_123",
-            enforcement=EnforcementMode.SOFT,
+            enforcement=EnforcementMode.OBSERVE,
             bot_detector=lambda request: True,
         )
     )

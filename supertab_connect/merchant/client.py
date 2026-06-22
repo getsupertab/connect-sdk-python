@@ -171,12 +171,12 @@ class SupertabConnect:
         if not self._detect_bot(request):
             return {"action": HandlerAction.ALLOW}
 
-        if self.enforcement is EnforcementMode.STRICT:
+        if self.enforcement is EnforcementMode.ENFORCE:
             return build_block_result(
                 reason=LicenseTokenInvalidReason.MISSING_TOKEN,
                 error="Authorization header missing or malformed",
                 request_url=url,
             )
-        if self.enforcement is EnforcementMode.SOFT:
+        if self.enforcement is EnforcementMode.OBSERVE:
             return build_signal_result(url)
         return {"action": HandlerAction.ALLOW}

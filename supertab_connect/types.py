@@ -10,8 +10,8 @@ from httpx import Request
 
 class EnforcementMode(StrEnum):
     DISABLED = "disabled"
-    SOFT = "soft"
-    STRICT = "strict"
+    OBSERVE = "observe"
+    ENFORCE = "enforce"
 
 
 class LicenseTokenInvalidReason(StrEnum):
@@ -46,7 +46,7 @@ BotDetector: TypeAlias = Callable[[Request], bool]
 @dataclass(frozen=True)
 class SupertabConnectConfig:
     api_key: str
-    enforcement: EnforcementMode = EnforcementMode.SOFT
+    enforcement: EnforcementMode = EnforcementMode.OBSERVE
     supertab_base_url: str | None = None
     bot_detector: BotDetector | None = None
     debug: bool = False
