@@ -34,6 +34,14 @@ def _install_mock_transport(
     )
 
 
+async def test_create_async_client_sets_sdk_user_agent() -> None:
+    """The customer HTTP client (license.xml + token calls) carries the SDK User-Agent."""
+    from supertab_connect._version import _get_sdk_user_agent
+
+    async with _create_async_client() as client:
+        assert client.headers["User-Agent"] == _get_sdk_user_agent()
+
+
 def test_obtain_license_token_fetches_and_caches_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

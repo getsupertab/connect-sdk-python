@@ -30,6 +30,19 @@ async def test_fetch_platform_jwks(jwks_response):
         assert route.call_count == 1
 
 
+async def test_fetch_platform_jwks_sends_sdk_user_agent(jwks_response):
+    """JWKS requests carry the SDK User-Agent header."""
+    from supertab_connect._version import _get_sdk_user_agent
+
+    with respx.mock:
+        route = respx.get(JWKS_URL).respond(json=jwks_response)
+
+        clear_jwks_cache()
+        await fetch_platform_jwks(SUPERTAB_BASE_URL)
+
+        assert route.calls[0].request.headers["User-Agent"] == _get_sdk_user_agent()
+
+
 async def test_fetch_platform_jwks_caches_result(jwks_response):
     """Second call returns cached JWKS without a network request."""
     with respx.mock:

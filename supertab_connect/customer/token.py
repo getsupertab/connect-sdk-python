@@ -15,6 +15,7 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
+from supertab_connect._version import _get_sdk_user_agent
 from supertab_connect.common import debug_log, error_log
 from supertab_connect.exceptions import SupertabConnectError
 from supertab_connect.customer.content_matcher import _find_best_matching_content
@@ -96,6 +97,7 @@ def _evict_expired_license_xml() -> None:
 def _create_async_client(**kwargs: Any) -> httpx.AsyncClient:
     kwargs.setdefault("follow_redirects", True)
     kwargs.setdefault("timeout", httpx.Timeout(_DEFAULT_HTTP_TIMEOUT_SECONDS))
+    kwargs.setdefault("headers", {"User-Agent": _get_sdk_user_agent()})
     return httpx.AsyncClient(**kwargs)
 
 

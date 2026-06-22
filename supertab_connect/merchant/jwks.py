@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from supertab_connect._version import _get_sdk_user_agent
 from supertab_connect.common import debug_log, error_log
 from supertab_connect.exceptions import JwksKeyNotFoundError
 
@@ -17,7 +18,7 @@ _http_client: httpx.AsyncClient | None = None
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient()
+        _http_client = httpx.AsyncClient(headers={"User-Agent": _get_sdk_user_agent()})
     return _http_client
 
 
