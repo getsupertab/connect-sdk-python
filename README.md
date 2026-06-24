@@ -140,6 +140,20 @@ transport (for example, an in-memory recorder in tests) via the internal
 `analytics_transport` config field; `AnalyticsEvent` and `HandleRequestContext`
 are exported from the package root.
 
+### Native Fastly logging (not applicable to the Python SDK)
+
+The TypeScript SDK can deliver analytics through a **native Fastly Compute
+logging endpoint** (`FastlyLogTransport` / the `logEndpoint` option on
+`fastlyHandleRequests`) instead of the HTTP relay, letting Fastly ship events
+off-path to S3. That path is intentionally **not ported here**: Python does not
+run on Fastly Compute (the `fastly:logger` built-in has no Python equivalent),
+and — consistent with this SDK's design — the Python SDK does not embed CDN edge
+handlers, receiving CDN-derived signals through `HandleRequestContext` instead.
+
+If you need to deliver analytics somewhere other than the relay (for example, to
+a log shipper that forwards to S3/Tinybird), implement the `AnalyticsTransport`
+protocol and pass it via the `analytics_transport` config field.
+
 ## Error Handling
 
 Customer-side token retrieval raises `SupertabConnectError` when `license.xml`
