@@ -3,7 +3,7 @@
 import httpx
 import pytest
 
-from supertab_connect.analytics.types import AnalyticsEvent, AnalyticsTransport
+from supertab_connect.analytics.types import AnalyticsEvent, AnalyticsTransport, CdnRequestSignals
 from supertab_connect.merchant.client import SupertabConnect
 from supertab_connect.types import (
     EnforcementMode,
@@ -167,6 +167,26 @@ async def test_forwards_classification_signals_from_context():
     assert event.request_country == "DE"
     assert event.request_asn == 3320
     assert event.tls_fingerprint == "abc123"
+
+
+async def test_forwards_cdn_signals_from_context():
+    transport = RecordingTransport()
+    client = _client(transport, bot_detector=lambda request: True)
+
+    await client.handle_request(
+        _request({"User-Agent": "curl/8.0"}),
+        HandleRequestContext(
+            source_cdn="cloudflare",
+            cdn_signals=CdnRequestSignals(
+                tls_version="TLSv1.3",
+                cdn_verified_bot_category="AI Assistant",
+            ),
+        ),
+    )
+
+    event = transport.events[0]
+    assert event.tls_version == "TLSv1.3"
+    assert event.cdn_verified_bot_category == "AI Assistant"
 
 
 async def test_analytics_failure_does_not_break_request_handling():

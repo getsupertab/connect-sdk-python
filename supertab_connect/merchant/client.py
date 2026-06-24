@@ -195,6 +195,7 @@ class SupertabConnect:
                     request_country=context.request_country if context else None,
                     request_asn=context.request_asn if context else None,
                     tls_fingerprint=context.tls_fingerprint if context else None,
+                    cdn_signals=context.cdn_signals if context else None,
                 ),
             )
             self._analytics_transport.emit(event)

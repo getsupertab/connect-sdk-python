@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, NotRequired, TypeAlias, TypedDic
 from httpx import Request
 
 if TYPE_CHECKING:
-    from supertab_connect.analytics.types import AnalyticsTransport
+    from supertab_connect.analytics.types import AnalyticsTransport, CdnRequestSignals
 
 
 class EnforcementMode(StrEnum):
@@ -73,6 +73,8 @@ class HandleRequestContext:
     request_country: str | None = None
     request_asn: int | None = None
     tls_fingerprint: str | None = None
+    # Capture-v2 CDN plumbing not derivable from the portable Request (e.g. Cloudflare request.cf).
+    cdn_signals: "CdnRequestSignals | None" = None
 
 
 class AllowHandlerResult(TypedDict):
