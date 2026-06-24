@@ -5,6 +5,24 @@ from typing import ClassVar
 
 from httpx import Request
 
+from supertab_connect.analytics.build_analytics_event import (
+    BuildAnalyticsEventContext,
+    build_analytics_event,
+)
+from supertab_connect.analytics.transport import (
+    ANALYTICS_EVENTS_PATH,
+    HttpAnalyticsTransport,
+    NoopAnalyticsTransport,
+)
+from supertab_connect.analytics.transport import aclose_http_client as aclose_analytics_http_client
+from supertab_connect.analytics.types import (
+    TOKEN_OUTCOME_BY_REASON,
+    AnalyticsTransport,
+    Decision,
+    FinalAction,
+    TokenOutcome,
+)
+from supertab_connect.common import error_log
 from supertab_connect.merchant.events import aclose_http_client as aclose_events_http_client
 from supertab_connect.merchant.license import (
     build_block_result,
@@ -16,6 +34,7 @@ from supertab_connect.merchant.jwks import aclose_http_client as aclose_jwks_htt
 from supertab_connect.types import (
     BotDetector,
     EnforcementMode,
+    HandleRequestContext,
     HandlerAction,
     HandlerResult,
     InvalidLicenseToken,
@@ -57,8 +76,20 @@ class SupertabConnect:
         self.bot_detector = config.bot_detector
         self.debug = config.debug
         self._base_url_override = config.supertab_base_url
+        self._analytics_transport = self._build_analytics_transport(config)
         self._initialized = True
         type(self)._instance = self
+
+    def _build_analytics_transport(self, config: SupertabConnectConfig) -> AnalyticsTransport:
+        if config.analytics_transport is not None:
+            return config.analytics_transport
+        if not config.analytics_enabled:
+            return NoopAnalyticsTransport()
+        return HttpAnalyticsTransport(
+            url=f"{self.base_url.rstrip('/')}{ANALYTICS_EVENTS_PATH}",
+            api_key=config.api_key,
+            debug=config.debug,
+        )
 
     @classmethod
     def reset_instance(cls) -> None:
@@ -79,6 +110,7 @@ class SupertabConnect:
     async def aclose(self) -> None:
         await aclose_events_http_client()
         await aclose_jwks_http_client()
+        await aclose_analytics_http_client()
 
     async def __aenter__(self) -> "SupertabConnect":
         return self
@@ -138,17 +170,60 @@ class SupertabConnect:
 
         return detector(request)
 
-    async def handle_request(self, request: Request) -> HandlerResult:
+    def _emit_analytics(
+        self,
+        request: Request,
+        context: HandleRequestContext | None,
+        *,
+        has_token: bool,
+        token_outcome: TokenOutcome,
+        final_action: FinalAction,
+    ) -> None:
+        try:
+            event = build_analytics_event(
+                request,
+                Decision(
+                    has_token=has_token,
+                    token_outcome=token_outcome,
+                    final_action=final_action,
+                    enforcement_mode=self.enforcement,
+                ),
+                BuildAnalyticsEventContext(
+                    source_cdn=context.source_cdn if context else None,
+                    request_id=context.request_id if context else None,
+                    client_ip=context.client_ip if context else None,
+                    request_country=context.request_country if context else None,
+                    request_asn=context.request_asn if context else None,
+                    tls_fingerprint=context.tls_fingerprint if context else None,
+                ),
+            )
+            self._analytics_transport.emit(event)
+        except Exception as error:  # noqa: BLE001 — analytics must never break request handling
+            error_log(self.debug, f"failed to build/emit analytics event: {error}")
+
+    async def handle_request(self, request: Request, context: HandleRequestContext | None = None) -> HandlerResult:
         auth = request.headers.get("authorization", "")
         token = None
         auth_parts = auth.split(None, 1)
         if len(auth_parts) == 2 and auth_parts[0].lower() == "license":
             token = auth_parts[1]
+        has_token = token is not None
         url = str(request.url)
         user_agent = request.headers.get("user-agent", "unknown")
 
+        # Token present → validate, regardless of bot detection — except in DISABLED
+        # mode, which short-circuits to ALLOW without verification.
         if token:
             if self.enforcement is EnforcementMode.DISABLED:
+                # DISABLED short-circuits to ALLOW without verifying the token, so we cannot
+                # honestly claim "valid"; emit "not_validated" so it is not counted as licensed.
+                self._emit_analytics(
+                    request,
+                    context,
+                    has_token=has_token,
+                    token_outcome="not_validated",
+                    final_action="allow",
+                )
                 return {"action": HandlerAction.ALLOW}
 
             verification = await verify_and_record_event(
@@ -161,22 +236,64 @@ class SupertabConnect:
                 request_headers=dict(request.headers.items()),
             )
             if isinstance(verification, InvalidLicenseToken):
+                self._emit_analytics(
+                    request,
+                    context,
+                    has_token=has_token,
+                    token_outcome=TOKEN_OUTCOME_BY_REASON.get(verification.reason, "malformed"),
+                    final_action="block",
+                )
                 return build_block_result(
                     reason=verification.reason,
                     error=verification.error,
                     request_url=url,
                 )
+            self._emit_analytics(
+                request,
+                context,
+                has_token=has_token,
+                token_outcome="valid",
+                final_action="allow",
+            )
             return {"action": HandlerAction.ALLOW}
 
         if not self._detect_bot(request):
+            self._emit_analytics(
+                request,
+                context,
+                has_token=has_token,
+                token_outcome="absent",
+                final_action="allow",
+            )
             return {"action": HandlerAction.ALLOW}
 
         if self.enforcement is EnforcementMode.ENFORCE:
+            self._emit_analytics(
+                request,
+                context,
+                has_token=has_token,
+                token_outcome="absent",
+                final_action="block",
+            )
             return build_block_result(
                 reason=LicenseTokenInvalidReason.MISSING_TOKEN,
                 error="Authorization header missing or malformed",
                 request_url=url,
             )
         if self.enforcement is EnforcementMode.OBSERVE:
+            self._emit_analytics(
+                request,
+                context,
+                has_token=has_token,
+                token_outcome="absent",
+                final_action="observe",
+            )
             return build_signal_result(url)
+        self._emit_analytics(
+            request,
+            context,
+            has_token=has_token,
+            token_outcome="absent",
+            final_action="allow",
+        )
         return {"action": HandlerAction.ALLOW}

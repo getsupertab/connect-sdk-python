@@ -85,8 +85,60 @@ asyncio.run(main())
 ```
 
 For request-level enforcement, use `SupertabConnect.handle_request()` with an
-`httpx.Request`. See the `examples` directory for complete merchant and customer
-examples.
+`httpx.Request`. It extracts the license token from the `Authorization` header,
+verifies it, optionally emits a relay analytics event, and applies bot detection
+and enforcement mode when no token is present. It returns either
+`{"action": HandlerAction.ALLOW, ...}` or
+`{"action": HandlerAction.BLOCK, "status": ..., "body": ..., "headers": ...}`.
+
+`handle_request()` accepts an optional second argument, a `HandleRequestContext`,
+which carries per-request signals supplied by an upstream CDN/proxy
+(`source_cdn`, `client_ip`, `request_id`, `request_country`, `request_asn`,
+`tls_fingerprint`). These are recorded on the analytics event when present; for
+direct SDK use the context can be omitted.
+
+See the `examples` directory for complete merchant and customer examples.
+
+## Analytics
+
+The SDK can emit one analytics event per request to the Supertab Connect
+**relay** endpoint at `{base_url}/ingest/events`. This is **off by default** —
+enable it by passing `analytics_enabled=True`:
+
+```python
+from supertab_connect import SupertabConnect, SupertabConnectConfig
+
+client = SupertabConnect(
+    SupertabConnectConfig(
+        api_key="stc_live_your_api_key",
+        analytics_enabled=True,
+    )
+)
+```
+
+**No extra credentials are required.** Analytics requests are authenticated with
+your configured merchant `api_key` using `Authorization: Bearer <api_key>`. The
+backend derives merchant identity from the API key, so the SDK sends **no
+merchant identifier** in the analytics payload.
+
+Each `AnalyticsEvent` captures the request id, source CDN, a normalized client
+IP, the request path (with percent-encoding preserved), method, and selected
+headers — plus, when an upstream CDN exposes them via `HandleRequestContext`, the
+request country, ASN, TLS fingerprint, and HTTP Message Signature headers — along
+with the verification/enforcement decision for the request.
+
+**Fail-open:** analytics emission is fire-and-forget and can never block, slow,
+or alter request handling. If emission fails, the error is swallowed and the
+request proceeds exactly as it would with analytics disabled. Analytics is sent
+only to the relay at `/ingest/events`, independent of billing event recording.
+
+Point analytics at another environment by setting `supertab_base_url` on the
+config (or `SupertabConnect.set_base_url(...)`).
+
+For advanced use, the `AnalyticsTransport` protocol lets you inject a custom
+transport (for example, an in-memory recorder in tests) via the internal
+`analytics_transport` config field; `AnalyticsEvent` and `HandleRequestContext`
+are exported from the package root.
 
 ## Error Handling
 

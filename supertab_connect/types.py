@@ -3,9 +3,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, TypeAlias, TypedDict
 
 from httpx import Request
+
+if TYPE_CHECKING:
+    from supertab_connect.analytics.types import AnalyticsTransport
 
 
 class EnforcementMode(StrEnum):
@@ -50,6 +53,26 @@ class SupertabConnectConfig:
     supertab_base_url: str | None = None
     bot_detector: BotDetector | None = None
     debug: bool = False
+    # Enables analytics emission to the Supertab Connect relay. Default: False.
+    analytics_enabled: bool = False
+    # Internal dependency-injection seam: overrides the default HttpAnalyticsTransport when provided.
+    # Used by tests to inject in-memory transports. Not a merchant-facing option.
+    analytics_transport: "AnalyticsTransport | None" = None
+
+
+@dataclass(frozen=True)
+class HandleRequestContext:
+    """Optional CDN-supplied request context for `handle_request`.
+
+    All fields are omitted (None) for direct SDK invocation that did not pass through a CDN.
+    """
+
+    source_cdn: Literal["cloudflare", "fastly", "cloudfront"] | None = None
+    client_ip: str | None = None
+    request_id: str | None = None
+    request_country: str | None = None
+    request_asn: int | None = None
+    tls_fingerprint: str | None = None
 
 
 class AllowHandlerResult(TypedDict):

@@ -1,5 +1,6 @@
 """Supertab Connect SDK."""
 
+from supertab_connect.analytics.types import AnalyticsEvent, AnalyticsTransport
 from supertab_connect.customer.token import obtain_license_token
 from supertab_connect.exceptions import SupertabConnectError
 from supertab_connect.merchant.bots import default_bot_detector
@@ -7,6 +8,7 @@ from supertab_connect.merchant.client import SupertabConnect
 from supertab_connect.merchant.license import verify_license_token
 from supertab_connect.types import (
     EnforcementMode,
+    HandleRequestContext,
     HandlerAction,
     HandlerResult,
     RSLVerificationResult,
@@ -15,7 +17,10 @@ from supertab_connect.types import (
 )
 
 __all__ = [
+    "AnalyticsEvent",
+    "AnalyticsTransport",
     "EnforcementMode",
+    "HandleRequestContext",
     "HandlerAction",
     "HandlerResult",
     "RSLVerificationResult",
