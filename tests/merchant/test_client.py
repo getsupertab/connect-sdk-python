@@ -253,7 +253,7 @@ async def test_handle_request_allows_missing_token_for_non_bot():
     assert result == {"action": HandlerAction.ALLOW}
 
 
-async def test_handle_request_blocks_bot_in_strict_mode():
+async def test_handle_request_blocks_bot_in_enforce_mode():
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="sk_test_123",
@@ -269,7 +269,7 @@ async def test_handle_request_blocks_bot_in_strict_mode():
     assert block_result["status"] == 401
 
 
-async def test_handle_request_signals_bot_in_soft_mode():
+async def test_handle_request_signals_bot_in_observe_mode():
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="sk_test_123",
