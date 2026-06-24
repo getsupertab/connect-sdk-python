@@ -97,7 +97,15 @@ def _evict_expired_license_xml() -> None:
 def _create_async_client(**kwargs: Any) -> httpx.AsyncClient:
     kwargs.setdefault("follow_redirects", True)
     kwargs.setdefault("timeout", httpx.Timeout(_DEFAULT_HTTP_TIMEOUT_SECONDS))
-    kwargs.setdefault("headers", {"User-Agent": _get_sdk_user_agent()})
+
+    headers = kwargs.pop("headers", None)
+    if headers is None:
+        headers = {"User-Agent": _get_sdk_user_agent()}
+    else:
+        headers = dict(headers)
+        headers.setdefault("User-Agent", _get_sdk_user_agent())
+    kwargs["headers"] = headers
+
     return httpx.AsyncClient(**kwargs)
 
 
