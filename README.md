@@ -94,8 +94,15 @@ and enforcement mode when no token is present. It returns either
 `handle_request()` accepts an optional second argument, a `HandleRequestContext`,
 which carries per-request signals supplied by an upstream CDN/proxy
 (`source_cdn`, `client_ip`, `request_id`, `request_country`, `request_asn`,
-`tls_fingerprint`). These are recorded on the analytics event when present; for
-direct SDK use the context can be omitted.
+`tls_fingerprint`, and `cdn_signals`). These are recorded on the analytics event
+when present; for direct SDK use the context can be omitted.
+
+`cdn_signals` is a `CdnRequestSignals` object carrying the richer
+spoof-detection signals that cannot be read from the portable request — TLS
+fingerprinting fields, the verified-bot category, the negotiated protocol, and
+so on. These are platform-specific (for example, Cloudflare exposes them on
+`request.cf`), so the SDK takes them from the caller rather than extracting them
+itself. Everything left unset stays `null` on the event.
 
 See the `examples` directory for complete merchant and customer examples.
 
@@ -126,6 +133,28 @@ IP, the request path (with percent-encoding preserved), method, and selected
 headers — plus, when an upstream CDN exposes them via `HandleRequestContext`, the
 request country, ASN, TLS fingerprint, and HTTP Message Signature headers — along
 with the verification/enforcement decision for the request.
+
+Events emit at **`schema_version: 2`** ("capture v2"), which adds raw
+spoof-detection signals for query-time classification in the warehouse (the SDK
+never classifies — it emits raw signals only):
+
+- **Portable header signals**, read directly from the request: `sec_fetch_*`,
+  the `sec_ch_ua*` client hints, `accept`, `host`, `has_cookies`, and
+  `header_names` — the lowercased, deduped, sorted set of request-header names
+  with edge-injected headers (`cf-*`, `fastly-*`, `cloudfront-*`,
+  `x-forwarded-*`, `x-real-ip`, the synthesized `Host`, …) stripped so it
+  reflects only what the client sent.
+- **Query-string derived signals**: `query_length`, `query_param_count`, and
+  `query_suspicious` (a coarse exploit-marker heuristic). The raw query string
+  is **never** stored.
+- **CDN plumbing** supplied via `HandleRequestContext.cdn_signals`:
+  `accept_encoding`, `http_protocol`, `tls_version`, `tls_cipher`,
+  `tls_client_hello_length`, `tls_client_extensions_sha1`, `as_organization`,
+  `client_tcp_rtt`, `cdn_verified_bot_category`, `request_priority`, and
+  `tls_fingerprint_ja4`.
+
+`accept`, `sec_ch_ua`, and `as_organization` are truncated to 512 characters.
+Every capture-v2 field is fail-open: anything unavailable is emitted as `null`.
 
 **Fail-open:** analytics emission is fire-and-forget and can never block, slow,
 or alter request handling. If emission fails, the error is swallowed and the
