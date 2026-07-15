@@ -32,6 +32,7 @@ class LicenseTokenInvalidReason(StrEnum):
 class HandlerAction(StrEnum):
     ALLOW = "allow"
     BLOCK = "block"
+    RESPOND = "respond"
 
 
 class UsageType(StrEnum):
@@ -89,7 +90,20 @@ class BlockHandlerResult(TypedDict):
     headers: dict[str, str]
 
 
-HandlerResult: TypeAlias = AllowHandlerResult | BlockHandlerResult
+class RespondHandlerResult(TypedDict):
+    """A fully-formed response the caller must serve verbatim without contacting origin.
+
+    Emitted for the self-report status probe (`/.well-known/supertab/status`), which the
+    SDK answers directly rather than forwarding.
+    """
+
+    action: Literal[HandlerAction.RESPOND]
+    status: int
+    body: str
+    headers: dict[str, str]
+
+
+HandlerResult: TypeAlias = AllowHandlerResult | BlockHandlerResult | RespondHandlerResult
 
 
 @dataclass(frozen=True)

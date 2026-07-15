@@ -88,8 +88,10 @@ For request-level enforcement, use `SupertabConnect.handle_request()` with an
 `httpx.Request`. It extracts the license token from the `Authorization` header,
 verifies it, optionally emits a relay analytics event, and applies bot detection
 and enforcement mode when no token is present. It returns either
-`{"action": HandlerAction.ALLOW, ...}` or
-`{"action": HandlerAction.BLOCK, "status": ..., "body": ..., "headers": ...}`.
+`{"action": HandlerAction.ALLOW, ...}`,
+`{"action": HandlerAction.BLOCK, "status": ..., "body": ..., "headers": ...}`, or
+`{"action": HandlerAction.RESPOND, "status": ..., "body": ..., "headers": ...}`
+(see [Self-report status endpoint](#self-report-status-endpoint) below).
 
 `handle_request()` accepts an optional second argument, a `HandleRequestContext`,
 which carries per-request signals supplied by an upstream CDN/proxy
@@ -105,6 +107,35 @@ so on. These are platform-specific (for example, Cloudflare exposes them on
 itself. Everything left unset stays `null` on the event.
 
 See the `examples` directory for complete merchant and customer examples.
+
+## Self-report status endpoint
+
+`handle_request()` also answers the platform's self-report probe at
+`GET /.well-known/supertab/status`, which powers the portal's live-health view.
+When the request carries a valid backend-signed challenge
+(`Authorization: Bearer <challenge>`, an ES256 JWT scoped to the site origin with
+`purpose: status-probe`), the SDK returns a `RESPOND` result reporting its live
+config:
+
+```json
+{
+  "runtime": "cloudflare",
+  "component": { "kind": "python-sdk", "version": "1.0.0" },
+  "enforcement": "observe",
+  "eventReporting": false
+}
+```
+
+`runtime` comes from `HandleRequestContext.source_cdn` (or `null` for direct
+invocation). Without a valid challenge the SDK returns a minimal
+`{"supertab": true}` with a `404` status, disclosing nothing about the
+deployment. The probe short-circuits ahead of token verification, bot detection,
+and analytics — no event is emitted. Both responses set `Cache-Control:
+no-store`.
+
+A `RESPOND` result must be served to the caller **verbatim** (status, body, and
+headers) without forwarding to origin; it is distinguished from `ALLOW` / `BLOCK`
+by `result["action"] == HandlerAction.RESPOND`.
 
 ## Analytics
 

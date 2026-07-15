@@ -1,10 +1,12 @@
 """High-level merchant client for Supertab Connect."""
 
+import json
 from collections.abc import Mapping
 from typing import ClassVar
 
 from httpx import Request
 
+from supertab_connect._version import _get_sdk_version
 from supertab_connect.analytics.build_analytics_event import (
     BuildAnalyticsEventContext,
     build_analytics_event,
@@ -31,6 +33,7 @@ from supertab_connect.merchant.license import (
     verify_license_token,
 )
 from supertab_connect.merchant.jwks import aclose_http_client as aclose_jwks_http_client
+from supertab_connect.merchant.status import verify_status_challenge
 from supertab_connect.types import (
     BotDetector,
     EnforcementMode,
@@ -44,6 +47,7 @@ from supertab_connect.types import (
 )
 
 _DEFAULT_BASE_URL = "https://api-connect.supertab.co"
+_STATUS_PATH = "/.well-known/supertab/status"
 
 
 class SupertabConnect:
@@ -76,6 +80,7 @@ class SupertabConnect:
         self.bot_detector = config.bot_detector
         self.debug = config.debug
         self._base_url_override = config.supertab_base_url
+        self._analytics_enabled = config.analytics_enabled
         self._analytics_transport = self._build_analytics_transport(config)
         self._initialized = True
         type(self)._instance = self
@@ -202,7 +207,65 @@ class SupertabConnect:
         except Exception as error:  # noqa: BLE001 — analytics must never break request handling
             error_log(self.debug, f"failed to build/emit analytics event: {error}")
 
+    @staticmethod
+    def _request_origin(request: Request) -> str:
+        """The scheme://host[:port] origin of the request, matching JS `URL.origin`.
+
+        httpx normalizes away default ports (80/443), so they are never appended.
+        """
+        url = request.url
+        origin = f"{url.scheme}://{url.host}"
+        if url.port is not None:
+            origin += f":{url.port}"
+        return origin
+
+    async def _handle_status_request(self, request: Request, context: HandleRequestContext | None) -> HandlerResult:
+        """Answer the self-report status probe.
+
+        Serves the live SDK config to a valid backend-signed challenge, else a minimal
+        404. Short-circuits ahead of token verification, bot detection, and analytics.
+        """
+        headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+        auth = request.headers.get("authorization", "")
+        token = auth[len("Bearer ") :] if auth.startswith("Bearer ") else ""
+        ok = (
+            await verify_status_challenge(
+                token,
+                expected_audience=self._request_origin(request),
+                base_url=self.base_url,
+                debug=self.debug,
+            )
+            if token
+            else False
+        )
+        if not ok:
+            return {
+                "action": HandlerAction.RESPOND,
+                "status": 404,
+                "body": json.dumps({"supertab": True}),
+                "headers": headers,
+            }
+        body = json.dumps(
+            {
+                "runtime": context.source_cdn if context else None,
+                "component": {"kind": "python-sdk", "version": _get_sdk_version()},
+                "enforcement": self.enforcement.value,
+                "eventReporting": self._analytics_enabled,
+            }
+        )
+        return {
+            "action": HandlerAction.RESPOND,
+            "status": 200,
+            "body": body,
+            "headers": headers,
+        }
+
     async def handle_request(self, request: Request, context: HandleRequestContext | None = None) -> HandlerResult:
+        # The self-report status probe short-circuits ahead of everything else: it is answered
+        # directly (never forwarded to origin) and emits no analytics.
+        if request.url.path == _STATUS_PATH:
+            return await self._handle_status_request(request, context)
+
         auth = request.headers.get("authorization", "")
         token = None
         auth_parts = auth.split(None, 1)
