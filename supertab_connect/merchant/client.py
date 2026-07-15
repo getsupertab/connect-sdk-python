@@ -47,12 +47,17 @@ from supertab_connect.types import (
 )
 
 _DEFAULT_BASE_URL = "https://api-connect.supertab.co"
+# Analytics is served by the dedicated ingest service, not the API host. Kept separate from
+# _base_url (mirroring set_base_url/get_base_url) so the relay can be pointed at a different
+# host — or at localhost in dev — without moving token/JWKS/verify traffic.
+_DEFAULT_ANALYTICS_BASE_URL = "https://ingest-connect.supertab.co"
 _STATUS_PATH = "/.well-known/supertab/status"
 
 
 class SupertabConnect:
     _instance: ClassVar["SupertabConnect | None"] = None
     _base_url: ClassVar[str] = _DEFAULT_BASE_URL
+    _analytics_base_url: ClassVar[str] = _DEFAULT_ANALYTICS_BASE_URL
 
     def __new__(cls, config: SupertabConnectConfig, reset: bool = False) -> "SupertabConnect":
         if not reset and cls._instance is not None:
@@ -90,8 +95,10 @@ class SupertabConnect:
             return config.analytics_transport
         if not config.analytics_enabled:
             return NoopAnalyticsTransport()
+        # Precedence: per-instance analytics_base_url > set_analytics_base_url() > the ingest default.
+        analytics_base_url = config.analytics_base_url or type(self)._analytics_base_url
         return HttpAnalyticsTransport(
-            url=f"{self.base_url.rstrip('/')}{ANALYTICS_EVENTS_PATH}",
+            url=f"{analytics_base_url.rstrip('/')}{ANALYTICS_EVENTS_PATH}",
             api_key=config.api_key,
             debug=config.debug,
         )
@@ -107,6 +114,18 @@ class SupertabConnect:
     @classmethod
     def get_base_url(cls) -> str:
         return cls._base_url
+
+    @classmethod
+    def set_analytics_base_url(cls, url: str) -> None:
+        """Override the analytics ingest relay host (e.g. for a non-prod environment or local
+        development). Independent of set_base_url — token/JWKS/verify traffic is unaffected.
+        Can also be set per-instance via the ``analytics_base_url`` config option.
+        """
+        cls._analytics_base_url = url
+
+    @classmethod
+    def get_analytics_base_url(cls) -> str:
+        return cls._analytics_base_url
 
     @property
     def base_url(self) -> str:

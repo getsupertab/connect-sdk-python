@@ -140,8 +140,10 @@ by `result["action"] == HandlerAction.RESPOND`.
 ## Analytics
 
 The SDK can emit one analytics event per request to the Supertab Connect
-**relay** endpoint at `{base_url}/ingest/events`. This is **off by default** —
-enable it by passing `analytics_enabled=True`:
+**relay** endpoint at `/ingest/events`, served by the dedicated ingest service
+(`https://ingest-connect.supertab.co`) — separate from the API host used for
+token acquisition / JWKS / verification. This is **off by default** — enable it
+by passing `analytics_enabled=True`:
 
 ```python
 from supertab_connect import SupertabConnect, SupertabConnectConfig
@@ -192,8 +194,12 @@ or alter request handling. If emission fails, the error is swallowed and the
 request proceeds exactly as it would with analytics disabled. Analytics is sent
 only to the relay at `/ingest/events`, independent of billing event recording.
 
-Point analytics at another environment by setting `supertab_base_url` on the
-config (or `SupertabConnect.set_base_url(...)`).
+Point analytics at another environment with the `analytics_base_url` config
+option (or `SupertabConnect.set_analytics_base_url(...)`) — precedence is
+per-instance `analytics_base_url` > `set_analytics_base_url()` > the ingest
+default. This is independent of `supertab_base_url` / `set_base_url(...)`, which
+control the API host for token acquisition / JWKS / verification; changing that
+no longer moves analytics traffic.
 
 For advanced use, the `AnalyticsTransport` protocol lets you inject a custom
 transport (for example, an in-memory recorder in tests) via the internal

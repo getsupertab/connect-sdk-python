@@ -56,6 +56,10 @@ class SupertabConnectConfig:
     debug: bool = False
     # Enables analytics emission to the Supertab Connect relay. Default: False.
     analytics_enabled: bool = False
+    # Base URL of the analytics ingest relay. Defaults to the dedicated ingest service
+    # (https://ingest-connect.supertab.co) — separate from the API base URL used for token
+    # acquisition / JWKS / verification. Override for non-prod or local development.
+    analytics_base_url: str | None = None
     # Internal dependency-injection seam: overrides the default HttpAnalyticsTransport when provided.
     # Used by tests to inject in-memory transports. Not a merchant-facing option.
     analytics_transport: "AnalyticsTransport | None" = None
