@@ -14,7 +14,11 @@ from supertab_connect.common import debug_log, error_log
 from supertab_connect.exceptions import JwksKeyNotFoundError
 from supertab_connect.merchant.events import record_event
 from supertab_connect.merchant.headers import to_event_properties
-from supertab_connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
+from supertab_connect.merchant.jwks import (
+    _find_key_by_kid,
+    fetch_platform_jwks,
+    refresh_platform_jwks_on_miss,
+)
 from supertab_connect.types import (
     AllowHandlerResult,
     BlockHandlerResult,
@@ -200,8 +204,16 @@ async def verify_license_token(
             return ValidLicenseToken(license_id=license_id, payload=verified_payload)
         except JwksKeyNotFoundError:
             if attempt == 0:
-                debug_log(debug, "Key not found in cached JWKS, clearing cache and retrying...")
-                clear_jwks_cache()
+                debug_log(debug, "Key not found in cached JWKS, refreshing and retrying...")
+                try:
+                    await refresh_platform_jwks_on_miss(supertab_base_url, debug=debug)
+                except Exception:  # noqa: BLE001 — a failed refresh maps to server_error, like the initial fetch
+                    error_log(debug, "Failed to refresh platform JWKS")
+                    return InvalidLicenseToken(
+                        reason=LicenseTokenInvalidReason.SERVER_ERROR,
+                        error=_reason_to_error_description(LicenseTokenInvalidReason.SERVER_ERROR),
+                        license_id=license_id,
+                    )
                 continue
             debug_log(debug, "Key not found after JWKS cache refresh")
             return InvalidLicenseToken(

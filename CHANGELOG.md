@@ -52,6 +52,16 @@ its public surface is considered stable under semantic versioning.
 
 ### Fixed
 
+- **Throttled JWKS refresh on key-rotation misses.** When a token's `kid` is absent
+  from the cached key set, the SDK refreshes the platform JWKS at most once per minute
+  per base URL (single-flight, per-base-URL) instead of clearing the whole cache and
+  refetching on every miss. Because `kid` is read from an unverified JWT header, the
+  previous behavior let an unauthenticated caller — e.g. via the public
+  `/.well-known/supertab/status` endpoint — submit tokens with rotating unknown `kid`s
+  to bypass the 48h cache and force a backend fetch per request (and evict cached keys
+  used by license verification). Genuine rotations still recover on the first miss;
+  signature verification was never bypassed. Applies to both the status-probe and
+  license-verification paths.
 - **Analytics emits are drained on close.** The HTTP analytics transport now owns
   its own client and in-flight emit tasks; `await client.aclose()` (or exiting an
   `async with` block) flushes outstanding emits within a bounded timeout before

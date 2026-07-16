@@ -104,6 +104,22 @@ async def test_retries_after_jwks_refresh_on_key_rotation(sign_challenge, jwks_r
     assert route.call_count == 2
 
 
+async def test_bogus_probes_with_rotating_kids_do_not_amplify_jwks_fetches(sign_challenge, jwks_response):
+    # An unauthenticated caller submitting challenges with rotating unknown kids must not bypass
+    # the cache and force a backend JWKS fetch per probe. After the first (cooldown-spending)
+    # refresh, further misses are throttled to the cache.
+    with respx.mock:
+        route = respx.get(JWKS_URL).respond(json=jwks_response)
+
+        for i in range(5):
+            token = sign_challenge(kid=f"rotating-{i}")
+            result = await verify_status_challenge(token, expected_audience=SITE_ORIGIN, base_url=SUPERTAB_BASE_URL)
+            assert result is False  # unknown kid never verifies
+
+        # First probe: warm fetch + one refresh; every later probe is throttled → 2 fetches total.
+        assert route.call_count == 2
+
+
 # --- handle_request status branch --------------------------------------------
 
 

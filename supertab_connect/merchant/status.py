@@ -13,7 +13,11 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
 from supertab_connect.common import debug_log, error_log
 from supertab_connect.exceptions import JwksKeyNotFoundError
-from supertab_connect.merchant.jwks import _find_key_by_kid, clear_jwks_cache, fetch_platform_jwks
+from supertab_connect.merchant.jwks import (
+    _find_key_by_kid,
+    fetch_platform_jwks,
+    refresh_platform_jwks_on_miss,
+)
 
 _STATUS_PROBE_PURPOSE = "status-probe"
 # Clock skew tolerance for the challenge's exp/iat, matching the TS SDK's 5s.
@@ -52,9 +56,9 @@ async def verify_status_challenge(
     try:
         return await _verify()
     except JwksKeyNotFoundError:
-        debug_log(debug, "Key not found in cached JWKS, clearing cache and retrying...")
-        clear_jwks_cache()
+        debug_log(debug, "Key not found in cached JWKS, refreshing and retrying...")
         try:
+            await refresh_platform_jwks_on_miss(base_url, debug=debug)
             return await _verify()
         except Exception as error:  # noqa: BLE001 — status probe fails closed to a minimal 404
             error_log(debug, f"Status challenge verification failed after JWKS refresh: {error}")
