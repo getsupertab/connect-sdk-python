@@ -49,3 +49,13 @@ its public surface is considered stable under semantic versioning.
 - **`EnforcementMode` values renamed** to match the backend and the TS SDK:
   `SOFT` → `OBSERVE`, `STRICT` → `ENFORCE` (enum members and string values).
   The default was already observe-only — a rename, not a behavior change.
+
+### Fixed
+
+- **Analytics emits are drained on close.** The HTTP analytics transport now owns
+  its own client and in-flight emit tasks; `await client.aclose()` (or exiting an
+  `async with` block) flushes outstanding emits within a bounded timeout before
+  closing the client. Previously a fire-and-forget emit scheduled just before
+  `aclose()` could run afterwards, lazily recreate a fresh HTTP client that was
+  never closed (a leak), and race process shutdown. Emission remains fire-and-forget
+  and fail-open on the request path.

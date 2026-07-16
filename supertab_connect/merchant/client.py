@@ -16,7 +16,6 @@ from supertab_connect.analytics.transport import (
     HttpAnalyticsTransport,
     NoopAnalyticsTransport,
 )
-from supertab_connect.analytics.transport import aclose_http_client as aclose_analytics_http_client
 from supertab_connect.analytics.types import (
     TOKEN_OUTCOME_BY_REASON,
     AnalyticsTransport,
@@ -134,7 +133,11 @@ class SupertabConnect:
     async def aclose(self) -> None:
         await aclose_events_http_client()
         await aclose_jwks_http_client()
-        await aclose_analytics_http_client()
+        # The analytics transport owns its own client/tasks; drain them if it is closable.
+        # Injected custom transports may implement `emit` only, so this is duck-typed.
+        transport_aclose = getattr(self._analytics_transport, "aclose", None)
+        if callable(transport_aclose):
+            await transport_aclose()
 
     async def __aenter__(self) -> "SupertabConnect":
         return self

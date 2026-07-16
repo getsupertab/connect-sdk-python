@@ -9,7 +9,6 @@ from supertab_connect.analytics.transport import (
     ANALYTICS_EVENTS_PATH,
     HttpAnalyticsTransport,
     NoopAnalyticsTransport,
-    aclose_http_client as aclose_analytics_http_client,
 )
 from supertab_connect.analytics.types import (
     SCHEMA_VERSION,
@@ -37,7 +36,6 @@ __all__ = [
     "NoopAnalyticsTransport",
     "SourceCdn",
     "TokenOutcome",
-    "aclose_analytics_http_client",
     "build_analytics_event",
     "normalize_client_ip",
 ]

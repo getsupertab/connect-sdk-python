@@ -194,6 +194,12 @@ or alter request handling. If emission fails, the error is swallowed and the
 request proceeds exactly as it would with analytics disabled. Analytics is sent
 only to the relay at `/ingest/events`, independent of billing event recording.
 
+Because emission is fire-and-forget, close the client when you are done so
+in-flight events are not lost: `await client.aclose()` (or an `async with
+SupertabConnect(...) as client:` block) drains outstanding emits — bounded by a
+short timeout — and releases the underlying HTTP client. The drain never blocks
+request handling; it only applies at teardown.
+
 Point analytics at another environment with the `analytics_base_url` config
 option (or `SupertabConnect.set_analytics_base_url(...)`) — precedence is
 per-instance `analytics_base_url` > `set_analytics_base_url()` > the ingest

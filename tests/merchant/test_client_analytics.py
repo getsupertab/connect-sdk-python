@@ -31,6 +31,15 @@ class ThrowingTransport:
         raise RuntimeError("transport blew up")
 
 
+class ClosableRecordingTransport(RecordingTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.aclosed = False
+
+    async def aclose(self) -> None:
+        self.aclosed = True
+
+
 @pytest.fixture(autouse=True)
 def _reset_singleton():
     SupertabConnect.reset_instance()
@@ -208,3 +217,22 @@ async def test_no_event_emitted_without_context_still_works():
     event = transport.events[0]
     assert event.source_cdn is None
     assert event.request_id
+
+
+async def test_aclose_closes_the_analytics_transport():
+    transport = ClosableRecordingTransport()
+    client = _client(transport)
+
+    async with client:
+        pass
+
+    assert transport.aclosed is True
+
+
+async def test_aclose_tolerates_emit_only_transport():
+    # A custom transport implementing only `emit` (no `aclose`) must not break client teardown.
+    transport = RecordingTransport()
+    client = _client(transport)
+
+    async with client:
+        pass  # exit must not raise despite the transport lacking `aclose`
