@@ -253,7 +253,8 @@ class SupertabConnect:
         """
         headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
         auth = request.headers.get("authorization", "")
-        token = auth[len("Bearer ") :] if auth.startswith("Bearer ") else ""
+        auth_parts = auth.split(None, 1)
+        token = auth_parts[1] if len(auth_parts) == 2 and auth_parts[0].lower() == "bearer" else ""
         ok = (
             await verify_status_challenge(
                 token,
