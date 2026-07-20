@@ -92,6 +92,26 @@ async def test_rejects_expired_challenge(sign_challenge, mock_jwks):
     assert await verify_status_challenge(token, expected_audience=SITE_ORIGIN, base_url=SUPERTAB_BASE_URL) is False
 
 
+async def test_rejects_challenge_without_exp(ec_key_pair, mock_jwks):
+    # A "short-lived" challenge must carry an expiry; one signed without exp verifies otherwise
+    # (PyJWT validates exp only when present) and would be replayable forever.
+    private_key, _ = ec_key_pair
+    now = datetime.now(UTC)
+    payload = {"aud": SITE_ORIGIN, "purpose": "status-probe", "iat": now}  # no exp
+    pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
+    token = jwt.encode(payload, pem, algorithm="ES256", headers={"kid": "test-kid-1"})
+    assert await verify_status_challenge(token, expected_audience=SITE_ORIGIN, base_url=SUPERTAB_BASE_URL) is False
+
+
+async def test_rejects_challenge_without_iat(ec_key_pair, mock_jwks):
+    private_key, _ = ec_key_pair
+    now = datetime.now(UTC)
+    payload = {"aud": SITE_ORIGIN, "purpose": "status-probe", "exp": now + timedelta(seconds=60)}  # no iat
+    pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
+    token = jwt.encode(payload, pem, algorithm="ES256", headers={"kid": "test-kid-1"})
+    assert await verify_status_challenge(token, expected_audience=SITE_ORIGIN, base_url=SUPERTAB_BASE_URL) is False
+
+
 async def test_retries_after_jwks_refresh_on_key_rotation(sign_challenge, jwks_response):
     # First fetch returns a stale key set (missing the signing kid); the second returns the fresh one.
     stale = {"keys": [{**jwks_response["keys"][0], "kid": "old-kid"}]}
@@ -167,6 +187,24 @@ async def test_status_branch_reports_runtime_and_event_reporting_off(sign_challe
     assert body["eventReporting"] is False
 
 
+async def test_status_branch_reports_event_reporting_on_for_custom_transport(sign_challenge, mock_jwks):
+    # A custom transport emits regardless of the analytics_enabled flag, so eventReporting must
+    # report True even though analytics_enabled defaults to False — otherwise status would claim
+    # "eventReporting": false while events flow through the injected transport.
+    transport = RecordingTransport()
+    client = SupertabConnect(
+        SupertabConnectConfig(
+            api_key="sk_test_123",
+            analytics_transport=transport,
+        )
+    )
+
+    result = cast(RespondHandlerResult, await client.handle_request(_status_request(sign_challenge())))
+
+    body = json.loads(result["body"])
+    assert body["eventReporting"] is True
+
+
 async def test_status_branch_responds_404_on_invalid_challenge(sign_challenge, mock_jwks):
     client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
     result = cast(
@@ -187,4 +225,28 @@ async def test_status_branch_404_when_authorization_absent():
 
     assert result["action"] is HandlerAction.RESPOND
     assert result["status"] == 404
+    verify.assert_not_called()
+
+
+async def test_non_get_to_status_path_is_not_intercepted():
+    # Only GET is the status probe; other methods to the same path must reach the application.
+    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
+    request = httpx.Request("POST", STATUS_URL, headers={"Authorization": "Bearer whatever"})
+    with patch("supertab_connect.merchant.client.verify_status_challenge") as verify:
+        result = await client.handle_request(request)
+
+    assert result["action"] is not HandlerAction.RESPOND
+    verify.assert_not_called()
+
+
+async def test_encoded_lookalike_path_is_not_intercepted():
+    # request.url.path percent-decodes, but the probe must match the raw path only — an encoded
+    # look-alike (%2E for '.') is a different route and must flow through to the application.
+    client = SupertabConnect(SupertabConnectConfig(api_key="sk_test_123"))
+    encoded_url = f"{SITE_ORIGIN}/%2Ewell-known/supertab/status"
+    request = httpx.Request("GET", encoded_url, headers={"Authorization": "Bearer whatever"})
+    with patch("supertab_connect.merchant.client.verify_status_challenge") as verify:
+        result = await client.handle_request(request)
+
+    assert result["action"] is not HandlerAction.RESPOND
     verify.assert_not_called()

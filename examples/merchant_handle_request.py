@@ -42,6 +42,16 @@ async def main() -> None:
         print(result["headers"]["WWW-Authenticate"])
         return
 
+    # A RESPOND result (e.g. the self-report status probe at /.well-known/supertab/status)
+    # must be served to the caller verbatim — status, body, and headers — and never forwarded
+    # to origin. Treating it as ALLOW would leak the probe through to the application.
+    if result["action"] is HandlerAction.RESPOND:
+        print("RESPOND request")
+        print(result["status"])  # type: ignore
+        print(result["headers"])  # type: ignore
+        print(result["body"])  # type: ignore
+        return
+
     print("ALLOW request")
     if "headers" in result:
         print(result["headers"])
