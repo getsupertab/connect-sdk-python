@@ -50,6 +50,10 @@ async def verify_status_challenge(
             algorithms=["ES256"],
             audience=expected_audience,
             leeway=_CLOCK_TOLERANCE_SECONDS,
+            # A "short-lived" challenge must actually carry an expiry: without this, a signed
+            # challenge lacking exp (or iat) verifies and never expires — replayable forever.
+            # PyJWT validates exp/iat only when present, so require them explicitly.
+            options={"require": ["exp", "iat"]},
         )
         return payload.get("purpose") == _STATUS_PROBE_PURPOSE
 
