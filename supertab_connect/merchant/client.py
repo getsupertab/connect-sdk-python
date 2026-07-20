@@ -84,7 +84,11 @@ class SupertabConnect:
         self.bot_detector = config.bot_detector
         self.debug = config.debug
         self._base_url_override = config.supertab_base_url
-        self._analytics_enabled = config.analytics_enabled
+        # eventReporting (status endpoint) must reflect whether events are *actually* emitted.
+        # A configured custom transport (the DI/test seam) emits regardless of analytics_enabled,
+        # so the effective reporting state includes it — otherwise status could claim
+        # "eventReporting": false while events flow through the injected transport.
+        self._analytics_enabled = config.analytics_enabled or config.analytics_transport is not None
         self._analytics_transport = self._build_analytics_transport(config)
         self._initialized = True
         type(self)._instance = self
