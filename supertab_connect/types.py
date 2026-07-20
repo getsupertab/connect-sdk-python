@@ -3,15 +3,18 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, TypeAlias, TypedDict
 
 from httpx import Request
+
+if TYPE_CHECKING:
+    from supertab_connect.analytics.types import AnalyticsTransport, CdnRequestSignals
 
 
 class EnforcementMode(StrEnum):
     DISABLED = "disabled"
-    SOFT = "soft"
-    STRICT = "strict"
+    OBSERVE = "observe"
+    ENFORCE = "enforce"
 
 
 class LicenseTokenInvalidReason(StrEnum):
@@ -29,6 +32,7 @@ class LicenseTokenInvalidReason(StrEnum):
 class HandlerAction(StrEnum):
     ALLOW = "allow"
     BLOCK = "block"
+    RESPOND = "respond"
 
 
 class UsageType(StrEnum):
@@ -46,10 +50,36 @@ BotDetector: TypeAlias = Callable[[Request], bool]
 @dataclass(frozen=True)
 class SupertabConnectConfig:
     api_key: str
-    enforcement: EnforcementMode = EnforcementMode.SOFT
+    enforcement: EnforcementMode = EnforcementMode.OBSERVE
     supertab_base_url: str | None = None
     bot_detector: BotDetector | None = None
     debug: bool = False
+    # Enables analytics emission to the Supertab Connect relay. Default: False.
+    analytics_enabled: bool = False
+    # Base URL of the analytics ingest relay. Defaults to the dedicated ingest service
+    # (https://ingest-connect.supertab.co) — separate from the API base URL used for token
+    # acquisition / JWKS / verification. Override for non-prod or local development.
+    analytics_base_url: str | None = None
+    # Internal dependency-injection seam: overrides the default HttpAnalyticsTransport when provided.
+    # Used by tests to inject in-memory transports. Not a merchant-facing option.
+    analytics_transport: "AnalyticsTransport | None" = None
+
+
+@dataclass(frozen=True)
+class HandleRequestContext:
+    """Optional CDN-supplied request context for `handle_request`.
+
+    All fields are omitted (None) for direct SDK invocation that did not pass through a CDN.
+    """
+
+    source_cdn: Literal["cloudflare", "fastly", "cloudfront"] | None = None
+    client_ip: str | None = None
+    request_id: str | None = None
+    request_country: str | None = None
+    request_asn: int | None = None
+    tls_fingerprint: str | None = None
+    # Capture-v2 CDN plumbing not derivable from the portable Request (e.g. Cloudflare request.cf).
+    cdn_signals: "CdnRequestSignals | None" = None
 
 
 class AllowHandlerResult(TypedDict):
@@ -64,7 +94,20 @@ class BlockHandlerResult(TypedDict):
     headers: dict[str, str]
 
 
-HandlerResult: TypeAlias = AllowHandlerResult | BlockHandlerResult
+class RespondHandlerResult(TypedDict):
+    """A fully-formed response the caller must serve verbatim without contacting origin.
+
+    Emitted for the self-report status probe (`/.well-known/supertab/status`), which the
+    SDK answers directly rather than forwarding.
+    """
+
+    action: Literal[HandlerAction.RESPOND]
+    status: int
+    body: str
+    headers: dict[str, str]
+
+
+HandlerResult: TypeAlias = AllowHandlerResult | BlockHandlerResult | RespondHandlerResult
 
 
 @dataclass(frozen=True)

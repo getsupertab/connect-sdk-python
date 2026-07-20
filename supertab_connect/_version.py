@@ -8,10 +8,13 @@ _SDK_NAME = "supertab-connect-sdk-python"
 
 
 @lru_cache(maxsize=1)
-def _get_sdk_user_agent() -> str:
+def _get_sdk_version() -> str:
     try:
-        package_version = version(_PACKAGE_NAME)
+        return version(_PACKAGE_NAME)
     except PackageNotFoundError:
-        package_version = "unknown"
+        return "unknown"
 
-    return f"{_SDK_NAME}/{package_version}"
+
+@lru_cache(maxsize=1)
+def _get_sdk_user_agent() -> str:
+    return f"{_SDK_NAME}/{_get_sdk_version()}"

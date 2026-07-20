@@ -14,7 +14,7 @@ async def main() -> None:
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="your_api_key",
-            enforcement=EnforcementMode.SOFT,
+            enforcement=EnforcementMode.OBSERVE,
             debug=True,
         )
     )

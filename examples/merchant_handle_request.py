@@ -16,7 +16,7 @@ async def main() -> None:
     client = SupertabConnect(
         SupertabConnectConfig(
             api_key="your_api_key",
-            enforcement=EnforcementMode.STRICT,
+            enforcement=EnforcementMode.ENFORCE,
             debug=True,
         )
     )
@@ -40,6 +40,16 @@ async def main() -> None:
         print("BLOCK request")
         print(result["status"])  # type: ignore
         print(result["headers"]["WWW-Authenticate"])
+        return
+
+    # A RESPOND result (e.g. the self-report status probe at /.well-known/supertab/status)
+    # must be served to the caller verbatim — status, body, and headers — and never forwarded
+    # to origin. Treating it as ALLOW would leak the probe through to the application.
+    if result["action"] is HandlerAction.RESPOND:
+        print("RESPOND request")
+        print(result["status"])  # type: ignore
+        print(result["headers"])  # type: ignore
+        print(result["body"])  # type: ignore
         return
 
     print("ALLOW request")
