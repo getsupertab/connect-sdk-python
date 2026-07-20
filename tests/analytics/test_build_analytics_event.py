@@ -270,6 +270,12 @@ def test_header_names_strips_edge_injected_headers_across_all_cdns():
                 "x-forwarded-for": "1.2.3.4",
                 "x-real-ip": "1.2.3.4",
                 "x-original-request-url": "https://pub.example.com/a",
+                # portable proxy/CDN service-chain artifacts (esp. Fastly hops)
+                "cdn-loop": "fastly",
+                "x-varnish": "12345",
+                "via": "1.1 varnish",
+                "surrogate-key": "key-a key-b",
+                "surrogate-control": "max-age=3600",
             }
         ),
         BASE_DECISION,

@@ -282,10 +282,24 @@ class SupertabConnect:
             "headers": headers,
         }
 
+    @staticmethod
+    def _is_status_probe(request: Request) -> bool:
+        """Match the status probe on the exact ``GET /.well-known/supertab/status`` route only.
+
+        Uses the *raw* path (percent-encoding preserved) rather than ``request.url.path``, which
+        decodes ``%2F``/``%2E`` — so encoded look-alikes reach the application instead of being
+        served the SDK's response. Requiring GET keeps non-GET requests to the same path flowing
+        to the app. Mirrors the TS SDK's ``new URL().pathname`` comparison (plus a method check).
+        """
+        if request.method != "GET":
+            return False
+        raw_path = request.url.raw_path.split(b"?", 1)[0].decode("utf-8", "replace")
+        return raw_path == _STATUS_PATH
+
     async def handle_request(self, request: Request, context: HandleRequestContext | None = None) -> HandlerResult:
         # The self-report status probe short-circuits ahead of everything else: it is answered
         # directly (never forwarded to origin) and emits no analytics.
-        if request.url.path == _STATUS_PATH:
+        if self._is_status_probe(request):
             return await self._handle_status_request(request, context)
 
         auth = request.headers.get("authorization", "")

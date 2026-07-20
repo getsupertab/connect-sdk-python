@@ -29,7 +29,22 @@ _EDGE_HEADER_PREFIXES = ("cf-", "fastly-", "cloudfront-", "x-forwarded-")
 # ``host`` is included here because httpx synthesizes a Host header on Request construction; the JS
 # fetch ``Request`` hides it as a forbidden header, so the TS SDK never emits it in ``header_names``.
 # Stripping it keeps the cross-SDK header-name set consistent (host is captured in its own field).
-_EDGE_HEADER_NAMES = frozenset({"x-real-ip", "x-original-request-url", "host"})
+# ``cdn-loop``/``x-varnish``/``via``/``surrogate-key``/``surrogate-control`` are portable proxy/CDN
+# service-chain artifacts (esp. Fastly hops) — not client-sent, so they would pollute ``header_names``.
+# Deployment-specific injected headers (e.g. x-geoip-*, x-ua-device) must be stripped at the edge
+# instead; a portable SDK can't enumerate them. Mirrors the TS SDK's ``EDGE_HEADER_NAMES``.
+_EDGE_HEADER_NAMES = frozenset(
+    {
+        "x-real-ip",
+        "x-original-request-url",
+        "host",
+        "cdn-loop",
+        "x-varnish",
+        "via",
+        "surrogate-key",
+        "surrogate-control",
+    }
+)
 
 # Mechanical exploit markers for the query-string heuristic, matched case-insensitively against the
 # raw and URL-decoded query. A coarse signal only — real classification stays query-time in the
