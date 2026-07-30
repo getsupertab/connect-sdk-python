@@ -45,3 +45,42 @@ jobs:
 
       - name: Build package
         run: uv run python -m build
+
+  conformance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out SDK (the PR)
+        uses: actions/checkout@v4
+
+      - name: Check out conformance suite (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: getsupertab/connect-sdk-conformance
+          ref: v0.3.0
+          token: ${{ secrets.CONFORMANCE_REPO_TOKEN }}
+          path: _conformance
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install SDK dependencies
+        run: uv sync --locked
+
+      - name: Install conformance dependencies
+        run: npm ci
+        working-directory: _conformance
+
+      - name: Run conformance corpus (Python runner)
+        run: npm run conformance
+        working-directory: _conformance
+        env:
+          STC_PY_RUNNER_CWD: ${{ github.workspace }}
+          STC_ONLY: python
