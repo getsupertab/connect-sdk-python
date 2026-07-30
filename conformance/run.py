@@ -56,7 +56,6 @@ async def _verify(inp: dict) -> dict:
 
 
 async def _enforce(inp: dict) -> dict:
-    SupertabConnect.set_base_url(MOCK_ORIGIN)
     inst = SupertabConnect(
         SupertabConnectConfig(
             api_key="test",
@@ -101,7 +100,6 @@ def _customer_match(inp: dict) -> dict:
 
 
 async def _customer_obtain(inp: dict) -> dict:
-    SupertabConnect.set_base_url(MOCK_ORIGIN)
     try:
         token = await obtain_license_token(
             client_id=inp["client_id"],
