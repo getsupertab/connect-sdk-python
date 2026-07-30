@@ -26,6 +26,7 @@ from supertab_connect import (
 from supertab_connect.customer.content_matcher import _find_best_matching_content
 from supertab_connect.customer.content_parser import _parse_content_elements
 from supertab_connect.customer.token import _find_serverless_usage_content
+from supertab_connect.types import InvalidLicenseToken
 
 MOCK_ORIGIN = "http://localhost:9999"
 
@@ -49,7 +50,9 @@ async def _verify(inp: dict) -> dict:
         supertab_base_url=MOCK_ORIGIN,
         debug=False,
     )
-    return {"valid": res.valid, "reason": None if res.valid else str(res.reason)}
+    if isinstance(res, InvalidLicenseToken):
+        return {"valid": False, "reason": str(res.reason)}
+    return {"valid": True, "reason": None}
 
 
 async def _enforce(inp: dict) -> dict:
