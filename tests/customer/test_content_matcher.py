@@ -140,6 +140,51 @@ def test_find_best_matching_content_returns_none_for_empty_blocks() -> None:
     assert _find_best_matching_content([], "http://example.com/page") is None
 
 
+def test_find_best_matching_content_keeps_path_params_in_the_resource_url() -> None:
+    """RFC 2396 path params stay in the resource path, so /news;v=1 does not match /news."""
+    blocks = [
+        _ContentBlock(url_pattern="/news", server="http://127.0.0.1:8787", license_xml="<license/>"),
+    ]
+
+    assert _find_best_matching_content(blocks, "http://127.0.0.1:7676/news;v=1") is None
+    assert _find_best_matching_content(blocks, "http://127.0.0.1:7676/news") is not None
+
+
+def test_find_best_matching_content_keeps_path_params_in_the_url_pattern() -> None:
+    """Path params stay in the pattern path too, so a /news;v=1 pattern does not match /news."""
+    blocks = [
+        _ContentBlock(
+            url_pattern="http://127.0.0.1:7676/news;v=1",
+            server="http://127.0.0.1:8787",
+            license_xml="<license/>",
+        ),
+    ]
+
+    assert _find_best_matching_content(blocks, "http://127.0.0.1:7676/news") is None
+
+    match = _find_best_matching_content(blocks, "http://127.0.0.1:7676/news;v=1")
+    assert match is not None
+    assert match.url_pattern == "http://127.0.0.1:7676/news;v=1"
+
+
+@pytest.mark.parametrize(
+    "resource_url",
+    [
+        "http://127.0.0.1:7676/content",
+        "http://127.0.0.1:7676/content?v=1",
+        "http://127.0.0.1:7676/content#section",
+    ],
+)
+def test_find_best_matching_content_unchanged_without_path_params(resource_url: str) -> None:
+    """Resource URLs without path params match exactly as before."""
+    blocks = _parse_content_elements(SAMPLE_XML)
+
+    match = _find_best_matching_content(blocks, resource_url)
+
+    assert match is not None
+    assert match.url_pattern == "http://127.0.0.1:7676/content"
+
+
 @pytest.mark.parametrize(
     ("pattern", "path", "expected"),
     [

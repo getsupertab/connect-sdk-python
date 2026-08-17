@@ -46,7 +46,7 @@ class _CachedLicenseXml:
 
 
 def _build_origin(resource_url: str) -> str:
-    parsed = urllib.parse.urlparse(resource_url)
+    parsed = urllib.parse.urlsplit(resource_url)
     if not parsed.scheme or not parsed.netloc:
         raise SupertabConnectError(f"Invalid resource URL: {resource_url}")
     return f"{parsed.scheme}://{parsed.netloc}"

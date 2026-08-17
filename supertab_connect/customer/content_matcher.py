@@ -12,7 +12,10 @@ def _find_best_matching_content(
     resource_url: str,
     debug: bool = False,
 ) -> _ContentBlock | None:
-    parsed = urllib.parse.urlparse(resource_url)
+    # urlsplit, not urlparse: urlparse peels RFC 2396 ";params" off the last segment, so
+    # "/news;v=1" would match a "/news" block. urlsplit keeps them, matching the JS pathname
+    # the TS SDK gates on at the edge.
+    parsed = urllib.parse.urlsplit(resource_url)
     host = parsed.netloc
     path = parsed.path or "/"
     if not parsed.scheme or not host:
@@ -30,7 +33,7 @@ def _find_best_matching_content(
         if is_path_only:
             pattern_path = block.url_pattern
         else:
-            pattern = urllib.parse.urlparse(block.url_pattern)
+            pattern = urllib.parse.urlsplit(block.url_pattern)
             if not pattern.scheme or not pattern.netloc:
                 debug_log(debug, f"Skipping block with invalid URL pattern: {block.url_pattern}")
                 continue
