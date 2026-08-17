@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`supertab_base_url`** on `obtain_license_token()` — overrides the API host for a single
+  call. Defaults to `SupertabConnect.get_base_url()`.
+
+### Changed
+
+- **License-less mint on the Agreement path.** `obtain_license_token()` no longer raises when
+  no `<content>` block path-matches the resource. It mints license-less against
+  `{supertab_base_url}/token` and lets the backend resolve the merchant system from the
+  resource URL and the customer's single Active Agreement, so a `license.xml` that has drifted
+  cannot veto a mint backed by a valid Agreement. A matching block still mints against that
+  block's own `{server}/token` with the `<license>` chunk attached.
+- **`resource` carries the raw resource URL** on both lanes, no longer the matched block's
+  `url_pattern`.
+
 ## [1.0.0] — 2026-07-15
 
 First stable release. The SDK is now aligned with the TypeScript SDK's feature

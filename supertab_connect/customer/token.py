@@ -21,6 +21,7 @@ from supertab_connect.exceptions import SupertabConnectError
 from supertab_connect.customer.content_matcher import _find_best_matching_content
 from supertab_connect.customer.content_parser import _ContentBlock
 from supertab_connect.customer.content_parser import _parse_content_elements
+from supertab_connect.merchant.client import SupertabConnect
 from supertab_connect.types import UsageType
 
 _SUPPORTED_ALGS = ("ES256", "RS256")
@@ -327,21 +328,75 @@ def _find_serverless_usage_content(
     return _find_best_matching_content(matching_usage_blocks, resource_url, debug)
 
 
+@dataclass(frozen=True)
+class _TokenEndpoint:
+    """Where to mint. ``matched`` picks the RSL License lane over the Agreement lane."""
+
+    server: str
+    scope: str
+    matched: bool
+    license_xml: str | None = None
+
+
+def _select_token_endpoint(
+    content_blocks: list[_ContentBlock],
+    resource_url: str,
+    supertab_base_url: str,
+    debug: bool = False,
+) -> _TokenEndpoint:
+    """Resolve where to mint, decoupled from whether the live license.xml still grants the resource.
+
+    A path-matching ``<content>`` block gives the RSL License lane: mint against that block's
+    URN-scoped server and send its ``<license>`` chunk. Anything else falls through to the
+    Agreement lane, where the backend resolves the merchant system from the resource URL and the
+    customer's single Active Agreement, so a diverged license.xml cannot veto the mint.
+    """
+    token_content_blocks = [block for block in content_blocks if block.server]
+    matched = _find_best_matching_content(token_content_blocks, resource_url, debug)
+    if matched is not None and matched.server is not None:
+        debug_log(debug, f"Matched content block for resource URL: {resource_url}")
+        return _TokenEndpoint(
+            server=matched.server,
+            scope=matched.url_pattern,
+            matched=True,
+            license_xml=matched.license_xml,
+        )
+
+    patterns = ", ".join(block.url_pattern for block in token_content_blocks)
+    debug_log(
+        debug,
+        f"No <content> element matches resource URL: {resource_url} (patterns: {patterns}). "
+        f"Minting license-less against {supertab_base_url}; the backend resolves the Agreement.",
+    )
+    # _fetch_license_xml already derived the origin, so resource_url is known to have one.
+    return _TokenEndpoint(server=supertab_base_url, scope=_build_origin(resource_url), matched=False)
+
+
 async def obtain_license_token(
     *,
     client_id: str,
     client_secret: str,
     resource_url: str,
     usage: UsageType | str | None = None,
+    supertab_base_url: str | None = None,
     debug: bool = False,
 ) -> str | None:
     """Obtain a license token using the current client credentials flow.
 
     This is the supported customer flow. The SDK fetches ``license.xml`` for
-    the requested resource, finds the best matching ``<content>`` block, and
-    exchanges the client credentials for a license token. If ``usage`` is
-    provided and a matching serverless content block permits that usage, no
-    token is needed and ``None`` is returned.
+    the requested resource and exchanges the client credentials for a license
+    token on one of two lanes:
+
+    - RSL License path: a ``<content>`` block path-matches, so the ``<license>``
+      chunk goes to that block's own URN-scoped ``{server}/token``.
+    - Agreement path: nothing matches, so the chunk is omitted and the request
+      goes license-less to ``{supertab_base_url}/token``, where the backend
+      resolves the Agreement and mints against its pinned snapshot.
+
+    If ``usage`` is provided and a matching serverless content block permits that
+    usage, no token is needed and ``None`` is returned. ``supertab_base_url``
+    overrides the API host for this call only; it defaults to
+    ``SupertabConnect.get_base_url()``.
     """
     async with _create_async_client() as client:
         xml = await _fetch_license_xml(client, resource_url, debug)
@@ -362,20 +417,12 @@ async def obtain_license_token(
                 debug_log(debug, f"URL: {resource_url}, Usage: {usage}")
                 return None
 
-        token_content_blocks = [block for block in content_blocks if block.server]
-        matched_content = _find_best_matching_content(token_content_blocks, resource_url, debug)
-        if matched_content is None or matched_content.server is None:
-            patterns = ", ".join(block.url_pattern for block in token_content_blocks)
-            error_log(
-                debug,
-                f"No <content> element matches resource URL: {resource_url}. Available patterns: {patterns}",
-            )
-            raise SupertabConnectError(f"No <content> element in license.xml matches resource URL: {resource_url}")
+        base_url = (supertab_base_url or SupertabConnect.get_base_url()).rstrip("/")
+        endpoint = _select_token_endpoint(content_blocks, resource_url, base_url, debug)
 
-        debug_log(debug, f"Matched content block for resource URL: {resource_url}")
-        debug_log(debug, f"Using license XML: {matched_content.license_xml}")
-
-        cache_key = (client_id, matched_content.server, matched_content.url_pattern)
+        # server + scope, so path-only patterns on different origins can't collide. On the
+        # Agreement lane scope is the origin, so one Agreement token is reused per origin.
+        cache_key = (client_id, endpoint.server, endpoint.scope)
         cached = _get_cached_token(cache_key, debug)
         if cached is not None:
             return cached
@@ -386,18 +433,23 @@ async def obtain_license_token(
             if cached is not None:
                 return cached
 
-            token_endpoint = matched_content.server.rstrip("/") + "/token"
+            token_endpoint = endpoint.server.rstrip("/") + "/token"
             debug_log(debug, f"Requesting license token from {token_endpoint}")
+
+            body = {
+                "grant_type": "client_credentials",
+                "resource": resource_url,
+            }
+            # Only send the live chunk when a public <content> block actually matched; on the
+            # Agreement lane the backend mints from the Agreement's pinned snapshot instead.
+            if endpoint.matched and endpoint.license_xml:
+                body["license"] = endpoint.license_xml
 
             auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
             token = await _retrieve_license_token(
                 client,
                 token_endpoint=token_endpoint,
-                body={
-                    "grant_type": "client_credentials",
-                    "license": matched_content.license_xml,
-                    "resource": matched_content.url_pattern,
-                },
+                body=body,
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Accept": "application/json",
