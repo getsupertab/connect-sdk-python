@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from supertab_connect.customer.token import _create_async_client, _generate_license_token, obtain_license_token
 from supertab_connect.exceptions import SupertabConnectError
+from supertab_connect.merchant.client import SupertabConnect
 from supertab_connect.types import UsageType
 
 from tests.customer.conftest import SAMPLE_XML
@@ -53,7 +54,6 @@ def test_obtain_license_token_fetches_and_caches_token(
     client_secret = "secret"
     resource_url = "http://127.0.0.1:7676/article/foo"
     license_xml_url = "http://127.0.0.1:7676/license.xml"
-    matched_resource_pattern = "http://127.0.0.1:7676/article/*"
     token_endpoint = "http://127.0.0.1:8787/token"
     expected_basic_auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
 
@@ -67,7 +67,7 @@ def test_obtain_license_token_fetches_and_caches_token(
             assert request.headers["Authorization"] == f"Basic {expected_basic_auth}"
             body = dict(httpx.QueryParams(request.content.decode("utf-8")).multi_items())
             assert body["grant_type"] == "client_credentials"
-            assert body["resource"] == matched_resource_pattern
+            assert body["resource"] == resource_url
             assert "<license" in body["license"]
             return httpx.Response(200, json={"access_token": access_token}, request=request)
 
@@ -569,34 +569,110 @@ def test_obtain_license_token_raises_when_no_content_elements(
         )
 
 
-def test_obtain_license_token_raises_when_no_matching_content(
+NON_MATCHING_XML = """
+<rsl>
+  <content url="http://other-host.com/*" server="http://token.other.com">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+"""
+
+
+def test_obtain_license_token_mints_license_less_when_no_content_matches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Raises when no content block matches the resource URL."""
-    xml = """
-    <rsl>
-      <content url="http://other-host.com/*" server="http://token.other.com">
-        <license type="test"><link rel="self" /></license>
-      </content>
-    </rsl>
-    """
+    """No matching block takes the Agreement lane: generic /token, no license, raw resource URL."""
+    exp = int(time.time()) + 3600
+    access_token = jwt.encode({"exp": exp}, "x" * 32, algorithm="HS256")
+    resource_url = "http://127.0.0.1:7676/article/foo"
+    base_url = "http://api-connect.test"
+    seen: dict[str, Any] = {}
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, text=xml, request=request)
+        if str(request.url).endswith("/license.xml"):
+            return httpx.Response(200, text=NON_MATCHING_XML, request=request)
+
+        seen["url"] = str(request.url)
+        seen["body"] = dict(httpx.QueryParams(request.content.decode("utf-8")).multi_items())
+        return httpx.Response(200, json={"access_token": access_token}, request=request)
 
     _install_mock_transport(monkeypatch, handler)
 
-    with pytest.raises(
-        SupertabConnectError,
-        match="No <content> element in license.xml matches resource URL",
-    ):
-        asyncio.run(
-            obtain_license_token(
-                client_id="client",
-                client_secret="secret",
-                resource_url="http://127.0.0.1:7676/article/foo",
-            )
+    token = asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=resource_url,
+            supertab_base_url=base_url,
         )
+    )
+
+    assert token == access_token
+    assert seen["url"] == f"{base_url}/token"
+    assert seen["body"]["resource"] == resource_url
+    assert "license" not in seen["body"]
+
+
+def test_obtain_license_token_defaults_the_agreement_lane_to_the_configured_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an override, the Agreement lane mints against SupertabConnect.get_base_url()."""
+    access_token = jwt.encode({"exp": int(time.time()) + 3600}, "x" * 32, algorithm="HS256")
+    seen: dict[str, str] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).endswith("/license.xml"):
+            return httpx.Response(200, text=NON_MATCHING_XML, request=request)
+
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+    _install_mock_transport(monkeypatch, handler)
+    monkeypatch.setattr(SupertabConnect, "_base_url", "http://configured.test")
+
+    asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url="http://127.0.0.1:7676/article/foo",
+        )
+    )
+
+    assert seen["url"] == "http://configured.test/token"
+
+
+def test_obtain_license_token_does_not_share_agreement_tokens_across_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agreement-lane tokens are scoped per origin, so two origins mint separately."""
+    access_token = jwt.encode({"exp": int(time.time()) + 3600}, "x" * 32, algorithm="HS256")
+    base_url = "http://api-connect.test"
+    token_calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal token_calls
+        if str(request.url).endswith("/license.xml"):
+            return httpx.Response(200, text=NON_MATCHING_XML, request=request)
+
+        token_calls += 1
+        return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+    _install_mock_transport(monkeypatch, handler)
+
+    async def obtain(resource_url: str) -> str | None:
+        return await obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url=resource_url,
+            supertab_base_url=base_url,
+        )
+
+    asyncio.run(obtain("http://site-a.example/article/foo"))
+    asyncio.run(obtain("http://site-a.example/article/bar"))
+    asyncio.run(obtain("http://site-b.example/article/foo"))
+
+    # Two origins, so two mints; the second call on site-a is served from cache.
+    assert token_calls == 2
 
 
 def test_obtain_license_token_raises_on_token_endpoint_failure(
