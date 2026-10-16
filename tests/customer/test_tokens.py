@@ -688,15 +688,25 @@ MULTI_PROVIDER_XML = """
 
 
 @pytest.mark.parametrize(
-    ("base_url", "expected_url"),
+    ("license_xml", "base_url", "expected_url"),
     [
-        ("http://api-connect.test", "http://api-connect.test/merchant/token"),
-        ("http://other-api.test", "http://third-party.test/issuer/token"),
+        (MULTI_PROVIDER_XML, "http://api-connect.test", "http://api-connect.test/merchant/token"),
+        (MULTI_PROVIDER_XML, "http://other-api.test", "http://third-party.test/issuer/token"),
+        (
+            MULTI_PROVIDER_XML.replace("http://api-connect.test/merchant", "http://API-Connect.test:80/merchant"),
+            "http://api-connect.test",
+            "http://api-connect.test/merchant/token",
+        ),
+        (
+            MULTI_PROVIDER_XML.replace("http://third-party.test/issuer", "http://[broken"),
+            "http://api-connect.test",
+            "http://api-connect.test/merchant/token",
+        ),
     ],
-    ids=["supertab-block-wins", "falls-back-to-best-match"],
+    ids=["supertab-block-wins", "falls-back-to-best-match", "explicit-default-port", "malformed-unrelated-server"],
 )
 def test_obtain_license_token_prefers_supertab_hosted_blocks(
-    monkeypatch: pytest.MonkeyPatch, base_url: str, expected_url: str
+    monkeypatch: pytest.MonkeyPatch, license_xml: str, base_url: str, expected_url: str
 ) -> None:
     """A Supertab-hosted match beats a more specific third-party one; without one, the best match wins."""
     access_token = jwt.encode({"exp": int(time.time()) + 3600}, "x" * 32, algorithm="HS256")
@@ -704,7 +714,7 @@ def test_obtain_license_token_prefers_supertab_hosted_blocks(
 
     async def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url).endswith("/license.xml"):
-            return httpx.Response(200, text=MULTI_PROVIDER_XML, request=request)
+            return httpx.Response(200, text=license_xml, request=request)
 
         seen["url"] = str(request.url)
         return httpx.Response(200, json={"access_token": access_token}, request=request)

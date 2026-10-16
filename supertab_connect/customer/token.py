@@ -338,8 +338,22 @@ class _TokenEndpoint:
     license_xml: str | None = None
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _host_and_port(url: str) -> tuple[str, int | None] | None:
+    try:
+        parts = urllib.parse.urlsplit(url)
+        port = parts.port or _DEFAULT_PORTS.get(parts.scheme.lower())
+    except ValueError:
+        return None
+    return (parts.hostname, port) if parts.hostname else None
+
+
 def _is_supertab_server(server: str, supertab_base_url: str) -> bool:
-    return urllib.parse.urlsplit(server).netloc.lower() == urllib.parse.urlsplit(supertab_base_url).netloc.lower()
+    # Default ports normalized like the TS SDK's URL.host; an unparseable server is never Supertab.
+    host = _host_and_port(server)
+    return host is not None and host == _host_and_port(supertab_base_url)
 
 
 def _select_token_endpoint(
