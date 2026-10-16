@@ -23,9 +23,8 @@ from supertab_connect import (
     obtain_license_token,
     verify_license_token,
 )
-from supertab_connect.customer.content_matcher import _find_best_matching_content
 from supertab_connect.customer.content_parser import _parse_content_elements
-from supertab_connect.customer.token import _find_serverless_usage_content
+from supertab_connect.customer.token import _find_serverless_usage_content, _select_token_endpoint
 from supertab_connect.types import InvalidLicenseToken
 
 MOCK_ORIGIN = "http://localhost:9999"
@@ -87,14 +86,11 @@ def _customer_match(inp: dict) -> dict:
                 "token_server": None,
                 "requires_token": False,
             }
-    token_blocks = [b for b in blocks if b.server]
-    best = _find_best_matching_content(token_blocks, inp["resource_url"], False)
-    if best is None or best.server is None:
-        return {"matched": False, "matched_url_pattern": None, "token_server": None, "requires_token": False}
+    endpoint = _select_token_endpoint(blocks, inp["resource_url"], MOCK_ORIGIN)
     return {
-        "matched": True,
-        "matched_url_pattern": best.url_pattern,
-        "token_server": best.server,
+        "matched": endpoint.matched,
+        "matched_url_pattern": endpoint.scope if endpoint.matched else None,
+        "token_server": endpoint.server,
         "requires_token": True,
     }
 
@@ -106,6 +102,7 @@ async def _customer_obtain(inp: dict) -> dict:
             client_secret=inp["client_secret"],
             resource_url=inp["resource_url"],
             usage=inp.get("usage"),
+            supertab_base_url=MOCK_ORIGIN,
         )
     except Exception:
         return {"outcome": "error"}
