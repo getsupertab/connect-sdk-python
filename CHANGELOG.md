@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   block's own `{server}/token` with the `<license>` chunk attached.
 - **`resource` carries the raw resource URL** on both lanes, no longer the matched block's
   `url_pattern`.
+- **Supertab-hosted blocks win.** When several `<content>` blocks match, one whose `server`
+  is on the `supertab_base_url` host is chosen over a more specific match from another
+  provider, so client credentials never go to a third party when a Supertab block also
+  matches. Matches the TypeScript and PHP SDKs.
 
 ## [1.0.0] — 2026-07-15
 

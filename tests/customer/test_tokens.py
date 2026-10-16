@@ -675,6 +675,64 @@ def test_obtain_license_token_does_not_share_agreement_tokens_across_origins(
     assert token_calls == 2
 
 
+MULTI_PROVIDER_XML = """
+<rsl xmlns="https://rslstandard.org/rsl">
+  <content url="/news/premium/*" server="http://third-party.test/issuer">
+    <license type="test"><link rel="self" /></license>
+  </content>
+  <content url="/news/*" server="http://api-connect.test/merchant">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+"""
+
+
+@pytest.mark.parametrize(
+    ("license_xml", "base_url", "expected_url"),
+    [
+        (MULTI_PROVIDER_XML, "http://api-connect.test", "http://api-connect.test/merchant/token"),
+        (MULTI_PROVIDER_XML, "http://other-api.test", "http://third-party.test/issuer/token"),
+        (
+            MULTI_PROVIDER_XML.replace("http://api-connect.test/merchant", "http://API-Connect.test:80/merchant"),
+            "http://api-connect.test",
+            "http://api-connect.test/merchant/token",
+        ),
+        (
+            MULTI_PROVIDER_XML.replace("http://third-party.test/issuer", "http://[broken"),
+            "http://api-connect.test",
+            "http://api-connect.test/merchant/token",
+        ),
+    ],
+    ids=["supertab-block-wins", "falls-back-to-best-match", "explicit-default-port", "malformed-unrelated-server"],
+)
+def test_obtain_license_token_prefers_supertab_hosted_blocks(
+    monkeypatch: pytest.MonkeyPatch, license_xml: str, base_url: str, expected_url: str
+) -> None:
+    """A Supertab-hosted match beats a more specific third-party one; without one, the best match wins."""
+    access_token = jwt.encode({"exp": int(time.time()) + 3600}, "x" * 32, algorithm="HS256")
+    seen: dict[str, str] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).endswith("/license.xml"):
+            return httpx.Response(200, text=license_xml, request=request)
+
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"access_token": access_token}, request=request)
+
+    _install_mock_transport(monkeypatch, handler)
+
+    asyncio.run(
+        obtain_license_token(
+            client_id="client",
+            client_secret="secret",
+            resource_url="http://127.0.0.1:7676/news/premium/story",
+            supertab_base_url=base_url,
+        )
+    )
+
+    assert seen["url"] == expected_url
+
+
 def test_obtain_license_token_raises_on_token_endpoint_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

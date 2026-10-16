@@ -338,6 +338,24 @@ class _TokenEndpoint:
     license_xml: str | None = None
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _host_and_port(url: str) -> tuple[str, int | None] | None:
+    try:
+        parts = urllib.parse.urlsplit(url)
+        port = parts.port or _DEFAULT_PORTS.get(parts.scheme.lower())
+    except ValueError:
+        return None
+    return (parts.hostname, port) if parts.hostname else None
+
+
+def _is_supertab_server(server: str, supertab_base_url: str) -> bool:
+    # Default ports normalized like the TS SDK's URL.host; an unparseable server is never Supertab.
+    host = _host_and_port(server)
+    return host is not None and host == _host_and_port(supertab_base_url)
+
+
 def _select_token_endpoint(
     content_blocks: list[_ContentBlock],
     resource_url: str,
@@ -347,12 +365,19 @@ def _select_token_endpoint(
     """Resolve where to mint, decoupled from whether the live license.xml still grants the resource.
 
     A path-matching ``<content>`` block gives the RSL License lane: mint against that block's
-    URN-scoped server and send its ``<license>`` chunk. Anything else falls through to the
-    Agreement lane, where the backend resolves the merchant system from the resource URL and the
-    customer's single Active Agreement, so a diverged license.xml cannot veto the mint.
+    URN-scoped server and send its ``<license>`` chunk. Matches on the Supertab API host win over
+    other providers, so credentials never go to a third party when a Supertab block also matches.
+    Anything else falls through to the Agreement lane, where the backend resolves the merchant
+    system from the resource URL and the customer's single Active Agreement, so a diverged
+    license.xml cannot veto the mint.
     """
     token_content_blocks = [block for block in content_blocks if block.server]
-    matched = _find_best_matching_content(token_content_blocks, resource_url, debug)
+    supertab_blocks = [
+        b for b in token_content_blocks if b.server and _is_supertab_server(b.server, supertab_base_url)
+    ]
+    matched = _find_best_matching_content(supertab_blocks, resource_url, debug) or _find_best_matching_content(
+        token_content_blocks, resource_url, debug
+    )
     if matched is not None and matched.server is not None:
         debug_log(debug, f"Matched content block for resource URL: {resource_url}")
         return _TokenEndpoint(
