@@ -338,6 +338,10 @@ class _TokenEndpoint:
     license_xml: str | None = None
 
 
+def _is_supertab_server(server: str, supertab_base_url: str) -> bool:
+    return urllib.parse.urlsplit(server).netloc.lower() == urllib.parse.urlsplit(supertab_base_url).netloc.lower()
+
+
 def _select_token_endpoint(
     content_blocks: list[_ContentBlock],
     resource_url: str,
@@ -347,12 +351,19 @@ def _select_token_endpoint(
     """Resolve where to mint, decoupled from whether the live license.xml still grants the resource.
 
     A path-matching ``<content>`` block gives the RSL License lane: mint against that block's
-    URN-scoped server and send its ``<license>`` chunk. Anything else falls through to the
-    Agreement lane, where the backend resolves the merchant system from the resource URL and the
-    customer's single Active Agreement, so a diverged license.xml cannot veto the mint.
+    URN-scoped server and send its ``<license>`` chunk. Matches on the Supertab API host win over
+    other providers, so credentials never go to a third party when a Supertab block also matches.
+    Anything else falls through to the Agreement lane, where the backend resolves the merchant
+    system from the resource URL and the customer's single Active Agreement, so a diverged
+    license.xml cannot veto the mint.
     """
     token_content_blocks = [block for block in content_blocks if block.server]
-    matched = _find_best_matching_content(token_content_blocks, resource_url, debug)
+    supertab_blocks = [
+        b for b in token_content_blocks if b.server and _is_supertab_server(b.server, supertab_base_url)
+    ]
+    matched = _find_best_matching_content(supertab_blocks, resource_url, debug) or _find_best_matching_content(
+        token_content_blocks, resource_url, debug
+    )
     if matched is not None and matched.server is not None:
         debug_log(debug, f"Matched content block for resource URL: {resource_url}")
         return _TokenEndpoint(
